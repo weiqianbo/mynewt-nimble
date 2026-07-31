@@ -55,7 +55,9 @@ static void beacon_complete(int err, void *user_data)
 
 	BT_DBG("err %d", err);
 
-	sub->beacon_sent = k_uptime_get_32();
+	if (sub) {
+		sub->beacon_sent = k_uptime_get_32();
+	}
 }
 
 void bt_mesh_beacon_create(struct bt_mesh_subnet *sub,
@@ -99,6 +101,24 @@ static int secure_beacon_send(struct bt_mesh_subnet *sub, void *cb_data)
 
 	BT_DBG("");
 
+	if (!sub) {
+		BT_ERR("sub is NULL");
+		return -EINVAL;
+	}
+
+	/* Skip if subnet keys are not valid */
+	if (!sub->keys[0].valid) {
+		BT_DBG("subnet keys not valid, skipping beacon");
+		return 0;
+	}
+
+	/* Skip if beacon_sent is zero (not yet initialized) */
+	if (sub->beacon_sent == 0) {
+		BT_DBG("beacon_sent = 0, skipping beacon");
+		sub->beacon_sent = now;
+		return 0;
+	}
+
 	time_diff = now - sub->beacon_sent;
 	if (time_diff < (600 * MSEC_PER_SEC) &&
 		time_diff < BEACON_THRESHOLD(sub)) {
@@ -115,6 +135,8 @@ static int secure_beacon_send(struct bt_mesh_subnet *sub, void *cb_data)
 
 	bt_mesh_adv_send(buf, &send_cb, sub);
 	net_buf_unref(buf);
+
+	BT_DBG("");
 
 	return 0;
 }
@@ -241,7 +263,9 @@ static void beacon_send(struct ble_npl_event *work)
 		}
 
 		update_beacon_observation();
+		BT_DBG("");
 		(void)bt_mesh_subnet_find(secure_beacon_send, NULL);
+		BT_DBG("");
 
 		k_work_schedule(&beacon_timer, PROVISIONED_INTERVAL);
 

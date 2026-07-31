@@ -20,9 +20,9 @@ $(error NIMBLE_ROOT shall be defined)
 endif
 
 # For now this is required as there are places in NimBLE
-# assumingthat pointer is 4 bytes long.
-NIMBLE_CFLAGS := -m32
-NIMBLE_LDFLAGS := -m32
+# assuming that pointer is 4 bytes long.
+NIMBLE_CFLAGS := -D__WORDSIZE=64 -g
+NIMBLE_LDFLAGS := -static -g
 
 NIMBLE_INCLUDE := \
 	$(NIMBLE_ROOT)/nimble/include \

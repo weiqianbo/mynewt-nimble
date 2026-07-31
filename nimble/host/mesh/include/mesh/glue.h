@@ -24,6 +24,7 @@
 #include <errno.h>
 
 #include "syscfg/syscfg.h"
+#include "sysinit/sysinit.h"
 #include "nimble/nimble_npl.h"
 
 #include "os/os_mbuf.h"
