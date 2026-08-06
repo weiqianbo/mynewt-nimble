@@ -677,7 +677,17 @@ ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
             break;
         }
 
-        err = mbedtls_ecp_export(&keypair, &group, &d, &point);
+        err = mbedtls_ecp_group_copy(&group, &keypair.grp);
+        if (err) {
+            break;
+        }
+
+        err = mbedtls_mpi_copy(&d, &keypair.d);
+        if (err) {
+            break;
+        }
+
+        err = mbedtls_ecp_copy(&point, &keypair.Q);
         if (err) {
             break;
         }

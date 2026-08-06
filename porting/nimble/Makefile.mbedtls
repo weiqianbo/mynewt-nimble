@@ -1,18 +1,33 @@
-#
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#  *  http://www.apache.org/licenses/LICENSE-2.0
-#  * Unless required by applicable law or agreed to in writing,
-#  software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-#
+# mbedtls build integration for NimBLE
 
-MBEDTLS_LDFLAGS := -lmbedtls -lmbedcrypto
+MBEDTLS_ROOT := $(NIMBLE_ROOT)/../mbedtls-2.28.8
+MBEDTLS_LDFLAGS :=
+
+MBEDTLS_SRC := \
+    $(MBEDTLS_ROOT)/library/aes.c \
+    $(MBEDTLS_ROOT)/library/cipher.c \
+    $(MBEDTLS_ROOT)/library/cipher_wrap.c \
+    $(MBEDTLS_ROOT)/library/cmac.c \
+    $(MBEDTLS_ROOT)/library/sha256.c \
+    $(MBEDTLS_ROOT)/library/sha512.c \
+    $(MBEDTLS_ROOT)/library/md.c \
+    $(MBEDTLS_ROOT)/library/md5.c \
+    $(MBEDTLS_ROOT)/library/sha1.c \
+    $(MBEDTLS_ROOT)/library/bignum.c \
+    $(MBEDTLS_ROOT)/library/ecp.c \
+    $(MBEDTLS_ROOT)/library/ecp_curves.c \
+    $(MBEDTLS_ROOT)/library/ecdh.c \
+    $(MBEDTLS_ROOT)/library/ctr_drbg.c \
+    $(MBEDTLS_ROOT)/library/hmac_drbg.c \
+    $(MBEDTLS_ROOT)/library/entropy.c \
+    $(MBEDTLS_ROOT)/library/entropy_poll.c \
+    $(MBEDTLS_ROOT)/library/havege.c \
+    $(MBEDTLS_ROOT)/library/timing.c \
+    $(MBEDTLS_ROOT)/library/platform.c \
+    $(MBEDTLS_ROOT)/library/platform_util.c \
+    $(MBEDTLS_ROOT)/library/error.c \
+    $(MBEDTLS_ROOT)/library/constant_time.c \
+    $(MBEDTLS_ROOT)/library/version.c \
+    $(NULL)
+
+NIMBLE_SRC += $(MBEDTLS_SRC)
