@@ -235,6 +235,9 @@ ble_hs_hci_evt_disconn_complete(uint8_t event_code, const void *data,
      */
     ble_hs_wakeup_tx();
 
+    /* Connection gone; cancel the flow control recovery timer. */
+    ble_hs_hci_fc_timer_stop();
+
     return 0;
 }
 
@@ -322,6 +325,9 @@ ble_hs_hci_evt_num_completed_pkts(uint8_t event_code, const void *data,
 
     /* If any transmissions have stalled, wake them up now. */
     ble_hs_wakeup_tx();
+
+    /* Flow control recovered normally, cancel the recovery timer. */
+    ble_hs_hci_fc_timer_stop();
 
     return 0;
 }

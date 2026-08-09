@@ -26,12 +26,21 @@
 
 #define BLE_HCI_CMD_TIMEOUT_MS  2000
 
+/* Flow control recovery timeout (ms). If no "Number of Completed Packets"
+ * event is received within this period while avail_pkts==0, the host
+ * assumes the event was lost and restores ACL credits to unblock tx.
+ */
+#define BLE_HS_HCI_FC_TIMEOUT_MS   1000
+
 static struct ble_npl_mutex ble_hs_hci_mutex;
 static struct ble_npl_sem ble_hs_hci_sem;
 
 static struct ble_hci_ev *ble_hs_hci_ack;
 static uint16_t ble_hs_hci_buf_sz;
 static uint8_t ble_hs_hci_max_pkts;
+
+static struct ble_npl_callout ble_hs_hci_fc_timer;
+static int ble_hs_hci_fc_timer_inited;
 
 /* For now 32-bits of features is enough */
 static uint32_t ble_hs_hci_sup_feat;
@@ -134,6 +143,74 @@ ble_hs_hci_add_avail_pkts(uint16_t delta)
         ble_hs_sched_reset(BLE_HS_ECONTROLLER);
     } else {
         ble_hs_hci_avail_pkts += delta;
+    }
+}
+
+/**
+ * Flow control recovery callback. Fires when no "Number of Completed Packets"
+ * event has been received within BLE_HS_HCI_FC_TIMEOUT_MS while the
+ * controller buffer was full. Assumes the event was lost and restores
+ * credits to prevent permanent tx stall.
+ */
+static void
+ble_hs_hci_fc_timer_exp(struct ble_npl_event *ev)
+{
+    struct ble_hs_conn *conn;
+    uint16_t outstanding_total = 0;
+
+    ble_hs_lock();
+
+    if (ble_hs_hci_avail_pkts > 0) {
+        /* Flow control already recovered via a normal completed-pkts event. */
+        ble_hs_unlock();
+        return;
+    }
+
+    /* Sum outstanding packets across all connections and reset them. */
+    for (conn = ble_hs_conn_first();
+         conn != NULL;
+         conn = SLIST_NEXT(conn, bhc_next)) {
+        if (conn->bhc_outstanding_pkts > 0) {
+            outstanding_total += conn->bhc_outstanding_pkts;
+            conn->bhc_outstanding_pkts = 0;
+        }
+    }
+
+    if (outstanding_total > 0) {
+        BLE_HS_LOG(ERROR, "FC recovery: no completed-pkts event in %d ms, "
+                   "restoring %u ACL credits\n",
+                   BLE_HS_HCI_FC_TIMEOUT_MS, outstanding_total);
+        ble_hs_hci_add_avail_pkts(outstanding_total);
+    }
+
+    ble_hs_unlock();
+
+    /* Try to flush queued packets (wakeup_tx does its own locking). */
+    if (outstanding_total > 0) {
+        ble_hs_wakeup_tx();
+    }
+}
+
+void
+ble_hs_hci_fc_timer_start(void)
+{
+    if (!ble_hs_hci_fc_timer_inited) {
+        ble_npl_callout_init(&ble_hs_hci_fc_timer, ble_hs_evq_get(),
+                             ble_hs_hci_fc_timer_exp, NULL);
+        ble_hs_hci_fc_timer_inited = 1;
+    }
+
+    if (!ble_npl_callout_is_active(&ble_hs_hci_fc_timer)) {
+        ble_npl_callout_reset(&ble_hs_hci_fc_timer,
+                              ble_npl_time_ms_to_ticks32(BLE_HS_HCI_FC_TIMEOUT_MS));
+    }
+}
+
+void
+ble_hs_hci_fc_timer_stop(void)
+{
+    if (ble_hs_hci_fc_timer_inited) {
+        ble_npl_callout_stop(&ble_hs_hci_fc_timer);
     }
 }
 
@@ -584,6 +661,11 @@ ble_hs_hci_acl_tx_now(struct ble_hs_conn *conn, struct os_mbuf **om)
     if (txom != NULL) {
         /* The controller couldn't accommodate some or all of the packet. */
         *om = txom;
+        /* Start flow control recovery timer in case the completed-pkts
+         * event gets lost and avail_pkts stays at 0. */
+        if (ble_hs_hci_avail_pkts == 0) {
+            ble_hs_hci_fc_timer_start();
+        }
         return BLE_HS_EAGAIN;
     }
 
