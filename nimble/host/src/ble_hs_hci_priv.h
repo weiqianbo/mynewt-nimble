@@ -121,6 +121,7 @@ int ble_hs_hci_set_buf_sz(uint16_t pktlen, uint16_t max_pkts);
 void ble_hs_hci_add_avail_pkts(uint16_t delta);
 void ble_hs_hci_fc_timer_start(void);
 void ble_hs_hci_fc_timer_stop(void);
+void ble_hs_hci_fc_timer_ensure(void);
 
 uint16_t ble_hs_hci_util_handle_pb_bc_join(uint16_t handle, uint8_t pb,
                                            uint8_t bc);

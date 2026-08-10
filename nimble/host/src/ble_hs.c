@@ -309,6 +309,15 @@ ble_hs_wakeup_tx(void)
     }
 
 done:
+    /* Ensure the flow-control recovery timer is armed if we have
+     * outstanding ACL packets but no controller credits remaining. This
+     * catches: (1) the final packet of bhc_tx_q that exactly consumed the
+     * last available credit (packet sent via acl_tx_now returned 0 path);
+     * (2) the non-EAGAIN stop-on-error path where we stopped flushing but
+     * still have in-flight pkts.
+     */
+    ble_hs_hci_fc_timer_ensure();
+
     ble_hs_unlock();
 }
 

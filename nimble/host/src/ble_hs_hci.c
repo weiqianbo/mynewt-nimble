@@ -220,8 +220,36 @@ ble_hs_hci_fc_timer_start(void)
     }
 
     if (!ble_npl_callout_is_active(&ble_hs_hci_fc_timer)) {
+        BLE_HS_LOG(ERROR, "start fc timer.\n");
         ble_npl_callout_reset(&ble_hs_hci_fc_timer,
                               ble_npl_time_ms_to_ticks32(BLE_HS_HCI_FC_TIMEOUT_MS));
+    }
+}
+
+/**
+ * Ensures the flow-control recovery timer is running if there is at least
+ * one outstanding ACL packet and no controller credits left.  This covers
+ * cases where the timer would not have been started on the
+ * partially-sent (EAGAIN) path: e.g. a packet was fully transmitted and
+ * exactly consumed the last available credit, or after wakeup_tx flushes
+ * bhc_tx_q and leaves avail_pkts at 0 with outstanding pkts still in
+ * flight.
+ */
+void
+ble_hs_hci_fc_timer_ensure(void)
+{
+    struct ble_hs_conn *conn;
+
+    if (ble_hs_hci_avail_pkts != 0) {
+        return;
+    }
+
+    for (conn = ble_hs_conn_first(); conn != NULL;
+         conn = SLIST_NEXT(conn, bhc_next)) {
+        if (conn->bhc_outstanding_pkts > 0) {
+            ble_hs_hci_fc_timer_start();
+            return;
+        }
     }
 }
 
@@ -680,16 +708,21 @@ ble_hs_hci_acl_tx_now(struct ble_hs_conn *conn, struct os_mbuf **om)
     if (txom != NULL) {
         /* The controller couldn't accommodate some or all of the packet. */
         *om = txom;
-        /* Start flow control recovery timer in case the completed-pkts
-         * event gets lost and avail_pkts stays at 0. */
-        if (ble_hs_hci_avail_pkts == 0) {
-            ble_hs_hci_fc_timer_start();
-        }
+        /* Ensure the flow-control recovery timer is running in case the
+         * Number-of-Completed-Packets event gets lost and avail_pkts stays
+         * at 0 while outstanding pkts are in flight.
+         */
+        ble_hs_hci_fc_timer_ensure();
         return BLE_HS_EAGAIN;
     }
 
-    /* The entire packet was transmitted. */
+    /* The entire packet was transmitted.  Make sure the recovery timer is
+     * armed in case we just consumed the last available credit (avail_pkts
+     * dropped to 0 with outstanding pkts still pending).
+     */
     conn->bhc_flags &= ~BLE_HS_CONN_F_TX_FRAG;
+
+    ble_hs_hci_fc_timer_ensure();
 
     return 0;
 
