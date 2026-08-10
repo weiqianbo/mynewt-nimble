@@ -192,6 +192,7 @@ ble_hci_sock_acl_tx(struct os_mbuf *om)
     int i;
     struct os_mbuf *m;
     uint8_t ch;
+    int pktlen;
 
     memset(&msg, 0, sizeof(msg));
     memset(iov, 0, sizeof(iov));
@@ -209,12 +210,16 @@ ble_hci_sock_acl_tx(struct os_mbuf *om)
     }
     msg.msg_iovlen = i;
 
+    pktlen = OS_MBUF_PKTLEN(om);
     STATS_INC(hci_sock_stats, omsg);
     STATS_INC(hci_sock_stats, oacl);
-    STATS_INCN(hci_sock_stats, obytes, OS_MBUF_PKTLEN(om) + 1);
-    i = sendmsg(ble_hci_sock_state.sock, &msg, 0);
+    STATS_INCN(hci_sock_stats, obytes, pktlen + 1);
+    /* Use MSG_DONTWAIT to avoid blocking the host event queue when the
+     * socket send buffer is full (e.g., during flow control recovery
+     * flushing a large bhc_tx_q backlog). */
+    i = sendmsg(ble_hci_sock_state.sock, &msg, MSG_DONTWAIT);
     os_mbuf_free_chain(om);
-    if (i != OS_MBUF_PKTLEN(om) + 1) {
+    if (i != pktlen + 1) {
         if (i < 0) {
             dprintf(1, "sendmsg() failed : %d\n", errno);
         } else {
@@ -234,6 +239,7 @@ ble_hci_sock_iso_tx(struct os_mbuf *om)
     int i;
     struct os_mbuf *m;
     uint8_t ch;
+    int pktlen;
 
     memset(&msg, 0, sizeof(msg));
     memset(iov, 0, sizeof(iov));
@@ -251,12 +257,13 @@ ble_hci_sock_iso_tx(struct os_mbuf *om)
     }
     msg.msg_iovlen = i;
 
+    pktlen = OS_MBUF_PKTLEN(om);
     STATS_INC(hci_sock_stats, omsg);
     STATS_INC(hci_sock_stats, oiso);
-    STATS_INCN(hci_sock_stats, obytes, OS_MBUF_PKTLEN(om) + 1);
-    i = sendmsg(ble_hci_sock_state.sock, &msg, 0);
+    STATS_INCN(hci_sock_stats, obytes, pktlen + 1);
+    i = sendmsg(ble_hci_sock_state.sock, &msg, MSG_DONTWAIT);
     os_mbuf_free_chain(om);
-    if (i != OS_MBUF_PKTLEN(om) + 1) {
+    if (i != pktlen + 1) {
         if (i < 0) {
             dprintf(1, "sendmsg() failed : %d\n", errno);
         } else {
@@ -302,7 +309,7 @@ ble_hci_sock_cmdevt_tx(uint8_t *hci_ev, uint8_t h4_type)
     STATS_INC(hci_sock_stats, omsg);
     STATS_INCN(hci_sock_stats, obytes, len + 1);
 
-    i = sendmsg(ble_hci_sock_state.sock, &msg, 0);
+    i = sendmsg(ble_hci_sock_state.sock, &msg, MSG_DONTWAIT);
     ble_transport_free(hci_ev);
     if (i != len + 1) {
         if (i < 0) {
@@ -354,7 +361,7 @@ ble_hci_sock_acl_tx(struct os_mbuf *om)
     STATS_INC(hci_sock_stats, oacl);
     STATS_INCN(hci_sock_stats, obytes, OS_MBUF_PKTLEN(om) + 1);
 
-    i = sendto(ble_hci_sock_state.sock, buf, len, 0, (struct sockaddr *)&addr,
+    i = sendto(ble_hci_sock_state.sock, buf, len, MSG_DONTWAIT, (struct sockaddr *)&addr,
                sizeof(struct sockaddr_hci));
 
     free(buf);
@@ -405,7 +412,7 @@ ble_hci_sock_cmdevt_tx(uint8_t *hci_ev, uint8_t h4_type)
     buf[0] = h4_type;
     memcpy(&buf[1], hci_ev, len);
 
-    i = sendto(ble_hci_sock_state.sock, buf, len + 1, 0,
+    i = sendto(ble_hci_sock_state.sock, buf, len + 1, MSG_DONTWAIT,
                (struct sockaddr *)&addr, sizeof(struct sockaddr_hci));
 
     free(buf);
