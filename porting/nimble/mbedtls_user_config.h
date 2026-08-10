@@ -1,0 +1,73 @@
+/*
+ * User configuration override for mbed TLS when used with NimBLE.
+ *
+ * This file is included after the default mbedtls_config.h (via
+ * MBEDTLS_USER_CONFIG_FILE) and disables modules that NimBLE does
+ * not need but whose default-enabled state pulls in unresolved
+ * symbols (notably PSA Crypto and several extra ciphers/hashes).
+ */
+
+/* Disable PSA Crypto - NimBLE uses the legacy mbedtls APIs directly. */
+#undef MBEDTLS_PSA_CRYPTO_C
+#undef MBEDTLS_PSA_CRYPTO_STORAGE_C
+#undef MBEDTLS_PSA_CRYPTO_CLIENT
+#undef MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG
+#undef MBEDTLS_PSA_CRYPTO_SPM
+#undef MBEDTLS_PSA_INJECT_ENTROPY
+
+/* Disable SSL/TLS, X.509, PK, RSA, LMS - not used by NimBLE and several
+ * depend on PSA Crypto. */
+#undef MBEDTLS_SSL_TLS_C
+#undef MBEDTLS_SSL_PROTO_TLS1_2
+#undef MBEDTLS_SSL_PROTO_TLS1_3
+#undef MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED
+#undef MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL_ENABLED
+#undef MBEDTLS_SSL_TICKET_C
+#undef MBEDTLS_SSL_CONTEXT_SERIALIZATION
+#undef MBEDTLS_SSL_DTLS_ANTI_REPLAY
+#undef MBEDTLS_SSL_DTLS_CONNECTION_ID
+#undef MBEDTLS_SSL_DTLS_CONNECTION_ID_COMPAT
+#undef MBEDTLS_SSL_ENCRYPT_THEN_MAC
+#undef MBEDTLS_SSL_EXTENDED_MASTER_SECRET
+#undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
+#undef MBEDTLS_SSL_RENEGOTIATION
+#undef MBEDTLS_SSL_SESSION_TICKETS
+#undef MBEDTLS_X509_CRT_PARSE_C
+#undef MBEDTLS_X509_CRL_PARSE_C
+#undef MBEDTLS_X509_CSR_PARSE_C
+#undef MBEDTLS_X509_CREATE_C
+#undef MBEDTLS_X509_WRITE_CRT_C
+#undef MBEDTLS_X509_WRITE_CSR_C
+#undef MBEDTLS_X509_USE_C
+#undef MBEDTLS_X509_RSASSA_PSS_SUPPORT
+#undef MBEDTLS_X509_CRT_WRITE_C
+#undef MBEDTLS_X509_CSR_WRITE_C
+#undef MBEDTLS_PK_C
+#undef MBEDTLS_PK_PARSE_C
+#undef MBEDTLS_PK_WRITE_C
+#undef MBEDTLS_RSA_C
+#undef MBEDTLS_PKCS1_V15
+#undef MBEDTLS_PKCS1_V21
+#undef MBEDTLS_PKCS5_C
+#undef MBEDTLS_PKCS7_C
+#undef MBEDTLS_LMS_C
+#undef MBEDTLS_LMS_PRIVATE
+#undef MBEDTLS_SSL_SERVER_NAME_INDICATION
+#undef MBEDTLS_SSL_ALPN
+#undef MBEDTLS_SSL_DTLS_SRTP
+
+/* Disable hashes not used by NimBLE. */
+#undef MBEDTLS_RIPEMD160_C
+#undef MBEDTLS_SHA3_C
+
+/* Disable ciphers/cipher-modes not used by NimBLE. */
+#undef MBEDTLS_GCM_C
+#undef MBEDTLS_CCM_C
+#undef MBEDTLS_CHACHA20_C
+#undef MBEDTLS_CHACHAPOLY_C
+#undef MBEDTLS_CAMELLIA_C
+#undef MBEDTLS_ARIA_C
+#undef MBEDTLS_DES_C
+#undef MBEDTLS_NIST_KW_C
+#undef MBEDTLS_POLY1305_C
+#undef MBEDTLS_CIPHER_MODE_XTS

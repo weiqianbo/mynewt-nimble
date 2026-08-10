@@ -1,10 +1,12 @@
 # mbedtls build integration for NimBLE
 
-MBEDTLS_ROOT := $(NIMBLE_ROOT)/../mbedtls-2.28.8
+MBEDTLS_ROOT := $(NIMBLE_ROOT)/../mbedtls-3.6.7
 MBEDTLS_LDFLAGS :=
 
 MBEDTLS_SRC := \
     $(MBEDTLS_ROOT)/library/aes.c \
+    $(MBEDTLS_ROOT)/library/aesni.c \
+    $(MBEDTLS_ROOT)/library/aesce.c \
     $(MBEDTLS_ROOT)/library/cipher.c \
     $(MBEDTLS_ROOT)/library/cipher_wrap.c \
     $(MBEDTLS_ROOT)/library/cmac.c \
@@ -14,6 +16,7 @@ MBEDTLS_SRC := \
     $(MBEDTLS_ROOT)/library/md5.c \
     $(MBEDTLS_ROOT)/library/sha1.c \
     $(MBEDTLS_ROOT)/library/bignum.c \
+    $(MBEDTLS_ROOT)/library/bignum_core.c \
     $(MBEDTLS_ROOT)/library/ecp.c \
     $(MBEDTLS_ROOT)/library/ecp_curves.c \
     $(MBEDTLS_ROOT)/library/ecdh.c \
@@ -21,7 +24,6 @@ MBEDTLS_SRC := \
     $(MBEDTLS_ROOT)/library/hmac_drbg.c \
     $(MBEDTLS_ROOT)/library/entropy.c \
     $(MBEDTLS_ROOT)/library/entropy_poll.c \
-    $(MBEDTLS_ROOT)/library/havege.c \
     $(MBEDTLS_ROOT)/library/timing.c \
     $(MBEDTLS_ROOT)/library/platform.c \
     $(MBEDTLS_ROOT)/library/platform_util.c \
