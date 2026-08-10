@@ -56,6 +56,8 @@ SRC += \
 	./src/ble.c \
 	./shell/shell_port.c \
 	./shell/console_port.c \
+	./src/config/config.c \
+	./src/base64/base64.c \
 	$(NULL)
 
 # Add NPL and all NimBLE directories to include paths
