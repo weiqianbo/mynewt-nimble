@@ -448,9 +448,11 @@ ble_hci_sock_rx_msg(void)
     len = read(bhss->sock, bhss->rx_data + bhss->rx_off,
                sizeof(bhss->rx_data) - bhss->rx_off);
     if (len < 0) {
+         dprintf(1, "error read.");
         return -2;
     }
     if (len == 0) {
+        dprintf(1, "no read.");
         return -1;
     }
     bhss->rx_off += len;
@@ -517,7 +519,11 @@ ble_hci_sock_rx_msg(void)
             if (rc) {
                 ble_transport_free(data);
                 STATS_INC(hci_sock_stats, ierr);
-                return 0;
+                /* Fall through to memmove() below to drop the bad EVT
+                 * from rx buffer; do NOT return early here. Returning
+                 * early would skip the rx_off/memmove update and leave
+                 * the rx buffer stuck at this bad packet forever.
+                 */
             }
             break;
 #endif

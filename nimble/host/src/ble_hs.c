@@ -247,6 +247,21 @@ ble_hs_wakeup_tx_conn(struct ble_hs_conn *conn)
             STAILQ_INSERT_HEAD(&conn->bhc_tx_q, OS_MBUF_PKTHDR(om), omp_next);
             return BLE_HS_EAGAIN;
         }
+        if (rc != 0) {
+            /* Non-EAGAIN error (e.g. BLE_ERR_MEM_CAPACITY from socket
+             * send buffer full with MSG_DONTWAIT).  The HCI layer has
+             * already freed the mbuf chain on this error, so the packet
+             * is lost.  Stop processing further packets to avoid
+             * draining the entire queue with continued failures; let
+             * the event loop yield so RX events and socket TX can
+             * progress before we retry.
+             */
+            BLE_HS_LOG(ERROR,
+                       "wakeup_tx_conn: tx error rc=%d on conn handle=%d; "
+                       "packet dropped, stopping flush\n",
+                       rc, conn->bhc_handle);
+            return rc;
+        }
     }
 
     return 0;

@@ -133,17 +133,36 @@ ble_hs_hci_set_buf_sz(uint16_t pktlen, uint16_t max_pkts)
 
 /**
  * Increases the count of available controller ACL buffers.
+ * Caps the result at ble_hs_hci_max_pkts so that a double-credit cannot
+ * occur (e.g. after the flow-control recovery timer refunds credits, the
+ * controller later reports the same packets via Number-of-Completed-Packets).
  */
 void
 ble_hs_hci_add_avail_pkts(uint16_t delta)
 {
+    uint16_t new_avail;
+
     BLE_HS_DBG_ASSERT(ble_hs_locked_by_cur_task());
 
-    if (ble_hs_hci_avail_pkts + delta > UINT16_MAX) {
+    new_avail = ble_hs_hci_avail_pkts + delta;
+    if (new_avail < ble_hs_hci_avail_pkts) {
+        /* Wraparound past UINT16_MAX. */
         ble_hs_sched_reset(BLE_HS_ECONTROLLER);
-    } else {
-        ble_hs_hci_avail_pkts += delta;
+        return;
     }
+
+    /* Never report more available buffers than the controller actually has.
+     * This silently absorbs any double-crediting that can occur after the
+     * FC recovery timer restores credits.
+     */
+    if (new_avail > ble_hs_hci_max_pkts) {
+        BLE_HS_LOG(WARN,
+                   "avail_pkts %u would exceed max_pkts %u; clamping (delta=%u)\n",
+                   new_avail, ble_hs_hci_max_pkts, delta);
+        new_avail = ble_hs_hci_max_pkts;
+    }
+
+    ble_hs_hci_avail_pkts = new_avail;
 }
 
 /**
