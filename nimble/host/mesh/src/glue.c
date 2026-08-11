@@ -35,6 +35,9 @@
 
 #include <mbedtls/aes.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 extern uint8_t g_mesh_addr_type;
 
 #if MYNEWT_VAL(BLE_EXT_ADV)
@@ -597,11 +600,21 @@ bt_rand(void *buf, size_t len)
 {
     int rc;
     rc = ble_hs_hci_rand(buf, len);
-    if (rc != 0) {
-        return -1;
+    if (rc == 0) {
+        return 0;
     }
 
-    return 0;
+    /* HCI LE_RAND failed — fall back to /dev/urandom (Linux port) */
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        ssize_t n = read(fd, buf, len);
+        close(fd);
+        if (n == (ssize_t)len) {
+            return 0;
+        }
+    }
+
+    return -1;
 }
 
 int

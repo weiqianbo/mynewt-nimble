@@ -1326,8 +1326,8 @@ static int cmd_net_key_add(int argc, char *argv[])
 	if (has_key_val) {
 		size_t len;
 
-		len = hex2bin(argv[3], key_val, sizeof(key_val));
-		memset(key_val, 0, sizeof(key_val) - len);
+		len = hex2bin(argv[2], key_val, sizeof(key_val));
+		memset(key_val + len, 0, sizeof(key_val) - len);
 	} else {
 		memcpy(key_val, default_key, sizeof(key_val));
 	}
@@ -1449,7 +1449,7 @@ static int cmd_app_key_add(int argc, char *argv[])
 		size_t len;
 
 		len = hex2bin(argv[3], key_val, sizeof(key_val));
-		memset(key_val, 0, sizeof(key_val) - len);
+		memset(key_val + len, 0, sizeof(key_val) - len);
 	} else {
 		memcpy(key_val, default_key, sizeof(key_val));
 	}

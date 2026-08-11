@@ -448,7 +448,7 @@ ble_hci_sock_rx_msg(void)
     len = read(bhss->sock, bhss->rx_data + bhss->rx_off,
                sizeof(bhss->rx_data) - bhss->rx_off);
     if (len < 0) {
-         dprintf(1, "error read.");
+        //  dprintf(1, "error read.");
         return -2;
     }
     if (len == 0) {

@@ -35,10 +35,14 @@
 #include <mbedtls/cmac.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/ecdh.h>
+#include <mbedtls/error.h>
 #if MYNEWT_VAL(TRNG)
 #include "trng/trng.h"
 #endif
 #endif
+
+#include <fcntl.h>
+#include <unistd.h>
 
 #if MYNEWT_VAL(BLE_SM_SC) && MYNEWT_VAL(TRNG)
 static struct trng_dev *g_trng;
@@ -567,7 +571,29 @@ ble_sm_alg_rng(void *arg, unsigned char *buf, size_t size)
 
     return 0;
 #else
-    return ble_hs_hci_rand(buf, size);
+    int rc = ble_hs_hci_rand(buf, size);
+    if (rc == 0) {
+        return 0;
+    }
+
+    /* HCI LE_RAND failed — fall back to /dev/urandom (Linux port) */
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        size_t off = 0;
+        while (off < size) {
+            ssize_t n = read(fd, buf + off, size - off);
+            if (n <= 0) {
+                break;
+            }
+            off += n;
+        }
+        close(fd);
+        if (off == size) {
+            return 0;
+        }
+    }
+
+    return -1;
 #endif
 }
 
