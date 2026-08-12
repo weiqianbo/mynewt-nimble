@@ -164,7 +164,7 @@ void bt_test_print_credentials(void)
 	{
 		sub = bt_mesh_cdb_subnet_get(i);
 		app_key = &bt_mesh_cdb.app_keys[i];
-		if (sub[i].net_idx == BT_MESH_KEY_UNUSED) {
+		if (sub->net_idx == BT_MESH_KEY_UNUSED) {
 			continue;
 		}
 
@@ -172,7 +172,7 @@ void bt_test_print_credentials(void)
 
 		console_printf("Friend cred: %d\n", i);
 		console_printf("\tNetKeyIdx: %04x\n",
-			       sub[i].net_idx);
+			       sub->net_idx);
 		if (subnet) {
 			console_printf("\tNID: %02x\n", subnet->keys->msg.nid);
 			console_printf("\tEncKey: %s\n",
