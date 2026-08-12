@@ -22,6 +22,8 @@
 #define BLE_NPL_LOG_MODULE BLE_MESH_LOG
 #include <nimble/nimble_npl_log.h>
 
+#include <stdio.h>
+
 #include "mesh/glue.h"
 #include "adv.h"
 #include "../src/ble_hs_conn_priv.h"
@@ -558,11 +560,27 @@ int
 bt_dh_key_gen(const uint8_t remote_pk[64], bt_dh_key_cb_t cb)
 {
     uint8_t dh[32];
+    int i;
+
+    printf("bt_dh_key_gen: remote_pk[0..31] (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", remote_pk[i]);
+    printf("\n");
+    printf("bt_dh_key_gen: remote_pk[32..63] (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", remote_pk[32 + i]);
+    printf("\n");
+    printf("bt_dh_key_gen: priv (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", priv[i]);
+    printf("\n");
 
     if (ble_sm_alg_gen_dhkey((uint8_t *)&remote_pk[0], (uint8_t *)&remote_pk[32],
                               priv, dh)) {
+        printf("bt_dh_key_gen: ble_sm_alg_gen_dhkey FAILED\n");
         return -1;
     }
+
+    printf("bt_dh_key_gen: dh (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", dh[i]);
+    printf("\n");
 
     cb(dh);
     return 0;
