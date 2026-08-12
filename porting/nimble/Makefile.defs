@@ -21,8 +21,8 @@ endif
 
 # For now this is required as there are places in NimBLE
 # assumingthat pointer is 4 bytes long.
-NIMBLE_CFLAGS := --static -D__WORDSIZE=64 -g -DMBEDTLS_USER_CONFIG_FILE='"mbedtls_user_config.h"'
-NIMBLE_LDFLAGS := --static -D__WORDSIZE=64 -g
+NIMBLE_CFLAGS := --static -D__WORDSIZE=64 -g3 -O0 -fstack-protector-strong -fno-omit-frame-pointer -fsanitize=address -DMBEDTLS_USER_CONFIG_FILE='"mbedtls_user_config.h"'
+NIMBLE_LDFLAGS := --static -D__WORDSIZE=64 -g3 -O0 -fstack-protector-strong -fno-omit-frame-pointer -fsanitize=address
 
 NIMBLE_INCLUDE := \
 	$(NIMBLE_ROOT)/nimble/include \

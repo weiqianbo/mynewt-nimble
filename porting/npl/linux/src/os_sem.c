@@ -24,6 +24,7 @@
 
 #include "os/os.h"
 #include "nimble/nimble_npl.h"
+#include "nimble/nimble_port.h"
 
 /*
  * When a shell command (e.g., app-key-add) calls bt_mesh_cfg_* which blocks on
@@ -48,7 +49,7 @@ sem_pend_pump_events(void)
         return;
     }
 
-    evq = ble_npl_eventq_dflt_get();
+    evq = nimble_port_get_dflt_eventq();
     if (!evq) {
         return;
     }

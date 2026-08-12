@@ -42,7 +42,7 @@
 
 /* This should be higher priority (lower value) than main task priority */
 #define BLE_MESH_SHELL_TASK_PRIO 126
-#define BLE_MESH_SHELL_STACK_SIZE 768
+#define BLE_MESH_SHELL_STACK_SIZE 4096
 
 OS_TASK_STACK_DEFINE(g_blemesh_shell_stack, BLE_MESH_SHELL_STACK_SIZE);
 
