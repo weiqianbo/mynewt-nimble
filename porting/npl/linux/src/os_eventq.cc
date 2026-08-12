@@ -29,12 +29,17 @@ extern "C" {
 typedef wqueue<ble_npl_event *> wqueue_t;
 
 static struct ble_npl_eventq dflt_evq;
+static pthread_mutex_t dflt_evq_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct ble_npl_eventq *
 ble_npl_eventq_dflt_get(void)
 {
     if (!dflt_evq.q) {
-        dflt_evq.q = new wqueue_t();
+        pthread_mutex_lock(&dflt_evq_mutex);
+        if (!dflt_evq.q) {
+            dflt_evq.q = new wqueue_t();
+        }
+        pthread_mutex_unlock(&dflt_evq_mutex);
     }
 
     return &dflt_evq;
@@ -43,12 +48,18 @@ ble_npl_eventq_dflt_get(void)
 void
 ble_npl_eventq_init(struct ble_npl_eventq *evq)
 {
+    if (!evq) {
+        return;
+    }
     evq->q = new wqueue_t();
 }
 
 bool
 ble_npl_eventq_is_empty(struct ble_npl_eventq *evq)
 {
+    if (!evq || !evq->q) {
+        return true;
+    }
     wqueue_t *q = static_cast<wqueue_t *>(evq->q);
 
     if (q->size()) {
@@ -61,12 +72,16 @@ ble_npl_eventq_is_empty(struct ble_npl_eventq *evq)
 int
 ble_npl_eventq_inited(const struct ble_npl_eventq *evq)
 {
-    return (evq->q != NULL);
+    return (evq != NULL && evq->q != NULL);
 }
 
 void
 ble_npl_eventq_put(struct ble_npl_eventq *evq, struct ble_npl_event *ev)
 {
+    if (!evq || !evq->q || !ev) {
+        return;
+    }
+
     wqueue_t *q = static_cast<wqueue_t *>(evq->q);
 
     if (ev->ev_queued) {
@@ -81,6 +96,11 @@ struct ble_npl_event *ble_npl_eventq_get(struct ble_npl_eventq *evq,
                                          ble_npl_time_t tmo)
 {
     struct ble_npl_event *ev;
+
+    if (!evq || !evq->q) {
+        return NULL;
+    }
+
     wqueue_t *q = static_cast<wqueue_t *>(evq->q);
 
     ev = q->get(tmo);
@@ -97,8 +117,14 @@ ble_npl_eventq_run(struct ble_npl_eventq *evq)
 {
     struct ble_npl_event *ev;
 
+    if (!evq || !evq->q) {
+        return;
+    }
+
     ev = ble_npl_eventq_get(evq, BLE_NPL_TIME_FOREVER);
-    ble_npl_event_run(ev);
+    if (ev) {
+        ble_npl_event_run(ev);
+    }
 }
 
 
@@ -144,6 +170,10 @@ ble_npl_event_run(struct ble_npl_event *ev)
 void
 ble_npl_eventq_remove(struct ble_npl_eventq *evq, struct ble_npl_event *ev)
 {
+    if (!evq || !evq->q || !ev) {
+        return;
+    }
+
     wqueue_t *q = static_cast<wqueue_t *>(evq->q);
 
     if (!ev->ev_queued) {

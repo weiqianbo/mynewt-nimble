@@ -20,9 +20,48 @@
 #include <assert.h>
 #include <errno.h>
 #include <semaphore.h>
+#include <time.h>
 
 #include "os/os.h"
 #include "nimble/nimble_npl.h"
+
+/*
+ * When a shell command (e.g., app-key-add) calls bt_mesh_cfg_* which blocks on
+ * k_sem_take, the entire event loop is blocked because ble_npl_sem_pend is
+ * called from the event loop thread. This prevents incoming mesh responses and
+ * timer callbacks from being processed, causing a deadlock-like state.
+ *
+ * Fix: While waiting for the semaphore, periodically process events from the
+ * default event queue (nimble_port_get_dflt_eventq) to keep the event loop
+ * running. A __thread guard prevents nested event processing when a callback
+ * itself calls k_sem_take.
+ */
+static __thread int in_sem_pend = 0;
+
+static void
+sem_pend_pump_events(void)
+{
+    struct ble_npl_eventq *evq;
+    struct ble_npl_event *ev;
+
+    if (in_sem_pend) {
+        return;
+    }
+
+    evq = ble_npl_eventq_dflt_get();
+    if (!evq) {
+        return;
+    }
+
+    in_sem_pend = 1;
+
+    ev = ble_npl_eventq_get(evq, 0);
+    if (ev) {
+        ble_npl_event_run(ev);
+    }
+
+    in_sem_pend = 0;
+}
 
 ble_npl_error_t
 ble_npl_sem_init(struct ble_npl_sem *sem, uint16_t tokens)
@@ -61,7 +100,32 @@ ble_npl_sem_pend(struct ble_npl_sem *sem, uint32_t timeout)
     }
 
     if (timeout == BLE_NPL_TIME_FOREVER) {
-        err = sem_wait(&sem->lock);
+        /* Use 1ms timed wait loop to allow event processing between waits.
+         * This prevents the event loop from freezing when a shell command
+         * (e.g., app-key-add) blocks on k_sem_take. */
+        while (1) {
+            err = clock_gettime(CLOCK_REALTIME, &wait);
+            if (err) {
+                return BLE_NPL_ERROR;
+            }
+            wait.tv_nsec += 1000000; /* +1ms */
+            if (wait.tv_nsec >= 1000000000) {
+                wait.tv_sec++;
+                wait.tv_nsec -= 1000000000;
+            }
+
+            err = sem_timedwait(&sem->lock, &wait);
+            if (err == 0) {
+                return BLE_NPL_OK;
+            }
+            if (errno == ETIMEDOUT) {
+                sem_pend_pump_events();
+                continue;
+            }
+            if (errno != EINTR) {
+                break;
+            }
+        }
     } else {
         err = clock_gettime(CLOCK_REALTIME, &wait);
         if (err) {
@@ -70,12 +134,18 @@ ble_npl_sem_pend(struct ble_npl_sem *sem, uint32_t timeout)
 
         wait.tv_sec  += timeout / 1000;
         wait.tv_nsec += (timeout % 1000) * 1000000;
+        if (wait.tv_nsec >= 1000000000) {
+            wait.tv_sec  += wait.tv_nsec / 1000000000;
+            wait.tv_nsec %= 1000000000;
+        }
 
         while ((err = sem_timedwait(&sem->lock, &wait)) != 0) {
             switch (errno) {
             case EINTR:
+                sem_pend_pump_events();
                 continue;
             case ETIMEDOUT:
+                sem_pend_pump_events();
                 return BLE_NPL_TIMEOUT;
             }
             break;

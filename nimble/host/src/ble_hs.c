@@ -584,6 +584,11 @@ ble_hs_enqueue_hci_event(uint8_t *hci_evt)
 {
     struct ble_npl_event *ev;
 
+    if (ble_hs_evq == NULL) {
+        ble_transport_free(hci_evt);
+        return;
+    }
+
     ev = os_memblock_get(&ble_hs_hci_ev_pool);
     if (ev == NULL) {
         ble_transport_free(hci_evt);

@@ -36,7 +36,20 @@ public:
     wqueue()
     {
         pthread_mutexattr_init(&m_mutex_attr);
-        pthread_mutexattr_settype(&m_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+        /*
+         * Use PTHREAD_MUTEX_NORMAL (not RECURSIVE) because pthread_cond_wait
+         * with a recursive mutex has UNDEFINED behavior per POSIX.
+         * With a recursive mutex, pthread_cond_wait may not properly release
+         * the mutex, causing a deadlock where:
+         *   1. Thread A holds the mutex (recursive lock count > 0)
+         *   2. Thread A calls pthread_cond_wait which may NOT release the mutex
+         *   3. Thread B calls put() -> pthread_mutex_lock() and blocks forever
+         *   4. Thread A can never be signaled because Thread B holds the signal
+         *
+         * A normal mutex is sufficient because callbacks run AFTER get()
+         * returns (mutex already released), so there is no reentrant locking.
+         */
+        pthread_mutexattr_settype(&m_mutex_attr, PTHREAD_MUTEX_NORMAL);
         pthread_mutex_init(&m_mutex, &m_mutex_attr);
         pthread_cond_init(&m_condv, NULL);
     }
