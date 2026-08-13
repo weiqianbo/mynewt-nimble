@@ -21,8 +21,8 @@ endif
 
 # For now this is required as there are places in NimBLE
 # assumingthat pointer is 4 bytes long.
-NIMBLE_CFLAGS := -m32
-NIMBLE_LDFLAGS := -m32
+NIMBLE_CFLAGS := --static -D__WORDSIZE=64 -g3 -O0 -DMBEDTLS_USER_CONFIG_FILE='"mbedtls_user_config.h"'
+NIMBLE_LDFLAGS := --static -D__WORDSIZE=64 -g3 -O0
 
 NIMBLE_INCLUDE := \
 	$(NIMBLE_ROOT)/nimble/include \
@@ -73,3 +73,7 @@ include $(NIMBLE_ROOT)/porting/nimble/Makefile.mesh
 endif
 
 NIMBLE_OBJ := $(NIMBLE_SRC:.c=.o)
+
+# mbedtls integration
+MBEDTLS_ROOT := $(NIMBLE_ROOT)/../mbedtls-3.6.7
+NIMBLE_INCLUDE += $(MBEDTLS_ROOT)/include $(NIMBLE_ROOT)/porting/nimble

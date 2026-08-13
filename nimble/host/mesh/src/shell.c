@@ -42,7 +42,7 @@
 
 /* This should be higher priority (lower value) than main task priority */
 #define BLE_MESH_SHELL_TASK_PRIO 126
-#define BLE_MESH_SHELL_STACK_SIZE 768
+#define BLE_MESH_SHELL_STACK_SIZE 4096
 
 OS_TASK_STACK_DEFINE(g_blemesh_shell_stack, BLE_MESH_SHELL_STACK_SIZE);
 
@@ -1326,8 +1326,8 @@ static int cmd_net_key_add(int argc, char *argv[])
 	if (has_key_val) {
 		size_t len;
 
-		len = hex2bin(argv[3], key_val, sizeof(key_val));
-		memset(key_val, 0, sizeof(key_val) - len);
+		len = hex2bin(argv[2], key_val, sizeof(key_val));
+		memset(key_val + len, 0, sizeof(key_val) - len);
 	} else {
 		memcpy(key_val, default_key, sizeof(key_val));
 	}
@@ -1449,7 +1449,7 @@ static int cmd_app_key_add(int argc, char *argv[])
 		size_t len;
 
 		len = hex2bin(argv[3], key_val, sizeof(key_val));
-		memset(key_val, 0, sizeof(key_val) - len);
+		memset(key_val + len, 0, sizeof(key_val) - len);
 	} else {
 		memcpy(key_val, default_key, sizeof(key_val));
 	}
@@ -2019,12 +2019,14 @@ static int mod_pub_set(uint16_t addr, uint16_t mod_id, uint16_t cid, char *argv[
 		return -EINVAL;
 	}
 
+	printk("Model Publication begin.\n");
 	pub.transmit = BT_MESH_PUB_TRANSMIT(count, interval);
 
 	if (cid == CID_NVAL) {
 		err = bt_mesh_cfg_mod_pub_set(net.net_idx, net.dst, addr,
 					      mod_id, &pub, &status);
 	} else {
+		printk("Model bt_mesh_cfg_mod_pub_set_vnd begin.\n");
 		err = bt_mesh_cfg_mod_pub_set_vnd(net.net_idx, net.dst, addr,
 						  mod_id, cid, &pub, &status);
 	}

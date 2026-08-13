@@ -180,14 +180,17 @@ static uint8_t _mod_pub_set(struct bt_mesh_model *model, uint16_t pub_addr,
 			 uint8_t retransmit, bool store)
 {
 	if (!model->pub) {
+		BT_WARN("model has no pub context");
 		return STATUS_NVAL_PUB_PARAM;
 	}
 
 	if (!(MYNEWT_VAL(BLE_MESH_LOW_POWER)) && cred_flag) {
+		BT_WARN("cred_flag=1 but LOW_POWER not enabled");
 		return STATUS_FEAT_NOT_SUPP;
 	}
 
 	if (!model->pub->update && period) {
+		BT_WARN("period=0x%02x but no update callback", period);
 		return STATUS_NVAL_PUB_PARAM;
 	}
 
@@ -218,7 +221,13 @@ static uint8_t _mod_pub_set(struct bt_mesh_model *model, uint16_t pub_addr,
 		return STATUS_SUCCESS;
 	}
 
-	if (!bt_mesh_app_key_exists(app_idx) || !bt_mesh_model_has_key(model, app_idx)) {
+	if (!bt_mesh_app_key_exists(app_idx)) {
+		BT_WARN("app_idx 0x%04x does not exist", app_idx);
+		return STATUS_INVALID_APPKEY;
+	}
+
+	if (!bt_mesh_model_has_key(model, app_idx)) {
+		BT_WARN("model does not have key 0x%04x", app_idx);
 		return STATUS_INVALID_APPKEY;
 	}
 
@@ -238,6 +247,10 @@ static uint8_t _mod_pub_set(struct bt_mesh_model *model, uint16_t pub_addr,
 	model->pub->ttl = ttl;
 	model->pub->period = period;
 	model->pub->retransmit = retransmit;
+
+	BT_INFO("pub set OK: addr=0x%04x key=0x%04x cred=%u ttl=%u "
+		"period=0x%02x retransmit=0x%02x",
+		pub_addr, app_idx, cred_flag, ttl, period, retransmit);
 
 	if (model->pub->update) {
 		int32_t period_ms;
@@ -761,6 +774,9 @@ static int send_mod_pub_status(struct bt_mesh_model *cfg_mod,
 
 	if (bt_mesh_model_send(cfg_mod, ctx, msg, NULL, NULL)) {
 		BT_ERR("Unable to send Model Publication Status");
+	} else {
+		BT_INFO("Model Publication Status sent: status=0x%02x "
+			"elem_addr=0x%04x vnd=%d", status, elem_addr, vnd);
 	}
 
 	os_mbuf_free_chain(msg);
@@ -866,6 +882,7 @@ static int mod_pub_set(struct bt_mesh_model *model,
 
 	elem = bt_mesh_elem_find(elem_addr);
 	if (!elem) {
+		BT_WARN("elem not found for addr 0x%04x", elem_addr);
 		mod = NULL;
 		vnd = (buf->om_len == 4);
 		status = STATUS_INVALID_ADDRESS;
@@ -874,14 +891,23 @@ static int mod_pub_set(struct bt_mesh_model *model,
 
 	mod = get_model(elem, buf, &vnd);
 	if (!mod) {
+		BT_WARN("model 0x%04x not found in elem 0x%04x (vnd=%d)",
+			mod_id ? sys_get_le16(mod_id) : 0, elem_addr, vnd);
 		status = STATUS_INVALID_MODEL;
 		goto send_status;
 	}
 
+	BT_INFO("found model: mod_id=0x%04x vnd=%d, calling _mod_pub_set",
+		vnd ? sys_get_le16(&mod_id[2]) : sys_get_le16(mod_id), vnd);
+
 	status = _mod_pub_set(mod, pub_addr, pub_app_idx, cred_flag, pub_ttl,
 			      pub_period, retransmit, true);
 
+	BT_INFO("_mod_pub_set returned status=0x%02x", status);
+
 send_status:
+	BT_INFO("sending mod_pub_status: status=0x%02x elem_addr=0x%04x "
+		"pub_addr=0x%04x vnd=%d", status, elem_addr, pub_addr, vnd);
 	return send_mod_pub_status(model, ctx, elem_addr, pub_addr, vnd, mod,
 				   status, mod_id);
 }

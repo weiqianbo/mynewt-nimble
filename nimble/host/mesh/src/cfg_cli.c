@@ -620,7 +620,17 @@ static int mod_pub_status(struct bt_mesh_model *model,
 		param->pub->transmit = net_buf_simple_pull_u8(buf);
 	}
 
+	BT_INFO("status=0x%02x elem_addr=0x%04x pub_addr=0x%04x app_idx=0x%04x "
+		"ttl=%u period=0x%02x transmit=0x%02x",
+		status, elem_addr,
+		param->pub ? param->pub->addr : 0,
+		param->pub ? param->pub->app_idx : 0,
+		param->pub ? param->pub->ttl : 0,
+		param->pub ? param->pub->period : 0,
+		param->pub ? param->pub->transmit : 0);
+
 	bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
+	BT_INFO("ack signaled");
 
 	return 0;
 }
@@ -2230,9 +2240,16 @@ static int mod_pub_set(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 		.pub = pub,
 	};
 	int err;
+	BT_INFO("net_idx=0x%04x addr=0x%04x elem_addr=0x%04x mod_id=0x%04x "
+		"cid=0x%04x pub_addr=0x%04x app_idx=0x%04x cred=%u ttl=%u "
+		"period=0x%02x transmit=0x%02x",
+		net_idx, addr, elem_addr, mod_id, cid,
+		pub->addr, pub->app_idx, pub->cred_flag, pub->ttl,
+		pub->period, pub->transmit);
 
 	err = cli_prepare(&param, OP_MOD_PUB_STATUS, addr);
 	if (err) {
+		BT_ERR("cli_prepare failed (err %d)", err);
 		goto done;
 	}
 
@@ -2251,6 +2268,10 @@ static int mod_pub_set(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 
 	net_buf_simple_add_le16(msg, mod_id);
 
+	BT_INFO("calling bt_mesh_model_send, ctx.net_idx=0x%04x app_idx=0x%04x "
+		"addr=0x%04x send_ttl=0x%02x msg_len=%u",
+		ctx.net_idx, ctx.app_idx, ctx.addr, ctx.send_ttl, msg->om_len);
+
 	err = bt_mesh_model_send(cli->model, &ctx, msg, NULL, NULL);
 	if (err) {
 		BT_ERR("model_send() failed (err %d)", err);
@@ -2258,12 +2279,16 @@ static int mod_pub_set(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 		goto done;
 	}
 
+	BT_INFO("model_send succeeded");
+
 	if (!status) {
 		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		goto done;
 	}
 
+	BT_INFO("waiting for ack (timeout %d ms)", msg_timeout);
 	err = bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
+	BT_INFO("ack_ctx_wait returned (err %d)", err);
 done:
 	os_mbuf_free_chain(msg);
 	return err;
@@ -2332,6 +2357,7 @@ int bt_mesh_cfg_mod_pub_set(uint16_t net_idx, uint16_t addr, uint16_t elem_addr,
 	if (pub->uuid) {
 		return mod_pub_va_set(net_idx, addr, elem_addr, mod_id, CID_NVAL, pub, status);
 	} else {
+		BT_ERR("Model Publication mod_pub_set begin.\n");
 		return mod_pub_set(net_idx, addr, elem_addr, mod_id, CID_NVAL, pub, status);
 	}
 }
