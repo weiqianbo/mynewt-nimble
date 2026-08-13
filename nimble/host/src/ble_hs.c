@@ -584,11 +584,19 @@ ble_hs_enqueue_hci_event(uint8_t *hci_evt)
 {
     struct ble_npl_event *ev;
 
+    if (ble_hs_evq == NULL) {
+        BLE_HS_LOG(INFO, "ble_hs_enqueue_hci_event: ble_hs_evq is NULL, freeing event\n");
+        ble_transport_free(hci_evt);
+        return;
+    }
+
     ev = os_memblock_get(&ble_hs_hci_ev_pool);
     if (ev == NULL) {
+        BLE_HS_LOG(INFO, "ble_hs_enqueue_hci_event: ev pool exhausted, freeing event\n");
         ble_transport_free(hci_evt);
     } else {
         ble_npl_event_init(ev, ble_hs_event_rx_hci_ev, hci_evt);
+        BLE_HS_LOG(INFO, "ble_hs_enqueue_hci_event: putting event on evq=%p\n", (void *)ble_hs_evq);
         ble_npl_eventq_put(ble_hs_evq, ev);
     }
 }

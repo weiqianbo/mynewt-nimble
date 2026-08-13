@@ -534,21 +534,31 @@ ble_hs_hci_rx_evt(uint8_t *hci_ev, void *arg)
 
     BLE_HS_DBG_ASSERT(hci_ev != NULL);
 
+    BLE_HS_LOG(INFO, "ble_hs_hci_rx_evt: ev_code=0x%02x len=%u\n",
+               ev->opcode, ev->length);
+
     switch (ev->opcode) {
     case BLE_HCI_EVCODE_COMMAND_COMPLETE:
         enqueue = (cmd_complete->opcode == BLE_HCI_OPCODE_NOP);
+        BLE_HS_LOG(INFO, "ble_hs_hci_rx_evt: CMD_COMPLETE opcode=0x%04x enqueue=%d\n",
+                   cmd_complete->opcode, enqueue);
         break;
     case BLE_HCI_EVCODE_COMMAND_STATUS:
         enqueue = (cmd_status->opcode == BLE_HCI_OPCODE_NOP);
+        BLE_HS_LOG(INFO, "ble_hs_hci_rx_evt: CMD_STATUS opcode=0x%04x status=0x%02x enqueue=%d\n",
+                   cmd_status->opcode, cmd_status->status, enqueue);
         break;
     default:
         enqueue = 1;
+        BLE_HS_LOG(INFO, "ble_hs_hci_rx_evt: other event, enqueue=1\n");
         break;
     }
 
     if (enqueue) {
+        BLE_HS_LOG(INFO, "ble_hs_hci_rx_evt: calling ble_hs_enqueue_hci_event\n");
         ble_hs_enqueue_hci_event(hci_ev);
     } else {
+        BLE_HS_LOG(INFO, "ble_hs_hci_rx_evt: calling ble_hs_hci_rx_ack\n");
         ble_hs_hci_rx_ack(hci_ev);
     }
 

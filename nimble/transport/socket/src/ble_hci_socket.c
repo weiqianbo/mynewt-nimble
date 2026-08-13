@@ -440,21 +440,28 @@ ble_hci_sock_rx_msg(void)
     uint8_t *data;
     int sr;
     int rc;
+    int i;
 
     bhss = &ble_hci_sock_state;
     if (bhss->sock < 0) {
+        printf("hci_sock_rx_msg: sock<0\n");
         return -1;
     }
     len = read(bhss->sock, bhss->rx_data + bhss->rx_off,
                sizeof(bhss->rx_data) - bhss->rx_off);
     if (len < 0) {
-        //  dprintf(1, "error read.");
+        // printf("hci_sock_rx_msg: read failed errno=%d\n", errno);
         return -2;
     }
     if (len == 0) {
-        dprintf(1, "no read.");
+        printf("hci_sock_rx_msg: read returned 0\n");
         return -1;
     }
+    printf("ble_hci_sock_rx_msg read len(%u): ", len);
+    for (i = 0; i < len; i++) {
+        printf("0x%02x ", bhss->rx_data[bhss->rx_off + i]);
+    }
+    printf("\n");
     bhss->rx_off += len;
     STATS_INCN(hci_sock_stats, ibytes, len);
 
@@ -473,6 +480,7 @@ ble_hci_sock_rx_msg(void)
             STATS_INC(hci_sock_stats, icmd);
             data = ble_transport_alloc_cmd();
             if (!data) {
+                printf("hci_sock_rx_msg: alloc_cmd failed\n");
                 STATS_INC(hci_sock_stats, ierr);
                 break;
             }
@@ -481,6 +489,7 @@ ble_hci_sock_rx_msg(void)
             rc = ble_transport_to_ll_cmd(data);
             OS_EXIT_CRITICAL(sr);
             if (rc) {
+                printf("hci_sock_rx_msg: to_ll_cmd failed rc=%d\n", rc);
                 ble_transport_free(data);
                 STATS_INC(hci_sock_stats, ierr);
                 break;
@@ -499,16 +508,20 @@ ble_hci_sock_rx_msg(void)
             STATS_INC(hci_sock_stats, imsg);
             STATS_INC(hci_sock_stats, ievt);
 
+            printf("hci_sock_rx_msg: EVT len=%u ev_code=0x%02x rx_off=%u\n",
+                   len, bhss->rx_data[1], bhss->rx_off);
+
             /* There isn't much we can do if received event is too big */
             if (len - 1 > MYNEWT_VAL(BLE_TRANSPORT_EVT_SIZE)) {
+                printf("hci_sock_rx_msg: EVT too big (%d > %d)\n",
+                       len - 1, MYNEWT_VAL(BLE_TRANSPORT_EVT_SIZE));
                 STATS_INC(hci_sock_stats, ierr);
-                dprintf(1, "Too big HCI event (%d > %d), ignoring\n", len - 1,
-                        MYNEWT_VAL(BLE_TRANSPORT_EVT_SIZE));
                 return -1;
             }
 
             data = ble_transport_alloc_evt(0);
             if (!data) {
+                printf("hci_sock_rx_msg: alloc_evt failed\n");
                 STATS_INC(hci_sock_stats, ierr);
                 break;
             }
@@ -517,6 +530,7 @@ ble_hci_sock_rx_msg(void)
             rc = ble_transport_to_hs_evt(data);
             OS_EXIT_CRITICAL(sr);
             if (rc) {
+                printf("hci_sock_rx_msg: to_hs_evt failed rc=%d\n", rc);
                 ble_transport_free(data);
                 STATS_INC(hci_sock_stats, ierr);
                 /* Fall through to memmove() below to drop the bad EVT
@@ -524,6 +538,7 @@ ble_hci_sock_rx_msg(void)
                  * early would skip the rx_off/memmove update and leave
                  * the rx buffer stuck at this bad packet forever.
                  */
+                // return 0;
             }
             break;
 #endif
@@ -538,16 +553,19 @@ ble_hci_sock_rx_msg(void)
             }
             STATS_INC(hci_sock_stats, imsg);
             STATS_INC(hci_sock_stats, iacl);
+            printf("hci_sock_rx_msg: ACL len=%u rx_off=%u\n", len, bhss->rx_off);
 #if MYNEWT_VAL(BLE_CONTROLLER)
             m = ble_transport_alloc_acl_from_hs();
 #else
             m = ble_transport_alloc_acl_from_ll();
 #endif
             if (!m) {
+                printf("hci_sock_rx_msg: alloc_acl failed\n");
                 STATS_INC(hci_sock_stats, imem);
                 break;
             }
             if (os_mbuf_append(m, &bhss->rx_data[1], len - 1)) {
+                printf("hci_sock_rx_msg: mbuf_append failed\n");
                 STATS_INC(hci_sock_stats, imem);
                 os_mbuf_free_chain(m);
                 break;

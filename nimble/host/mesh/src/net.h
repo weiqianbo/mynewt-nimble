@@ -278,7 +278,7 @@ static inline void *net_buf_user_data(const struct os_mbuf *buf)
      * Using om_data is WRONG because it moves as data is added/removed,
      * causing out-of-bounds writes that corrupt adjacent memory.
      */
-    return (void *)(buf->om_databuf + buf->om_omp->omp_databuf_len - MYNEWT_VAL(BLE_MESH_NET_BUF_USER_DATA_SIZE));
+    return (void *)(buf->om_data + buf->om_omp->omp_databuf_len - MYNEWT_VAL(BLE_MESH_NET_BUF_USER_DATA_SIZE));
 }
 
 int bt_mesh_net_create(uint16_t idx, uint8_t flags, const uint8_t key[16],
