@@ -104,7 +104,9 @@ ble_hs_hci_lock(void)
 {
     int rc;
 
+    BLE_HS_LOG(INFO, "ble_hs_hci_lock: acquiring mutex...\n");
     rc = ble_npl_mutex_pend(&ble_hs_hci_mutex, BLE_NPL_TIME_FOREVER);
+    BLE_HS_LOG(INFO, "ble_hs_hci_lock: mutex acquired rc=%d\n", rc);
     BLE_HS_DBG_ASSERT_EVAL(rc == 0 || rc == OS_NOT_STARTED);
 }
 
@@ -397,8 +399,11 @@ ble_hs_hci_wait_for_ack(void)
         rc = ble_hs_hci_phony_ack_cb((void *)ble_hs_hci_ack, 260);
     }
 #else
+    BLE_HS_LOG(INFO, "ble_hs_hci_wait_for_ack: waiting for HCI ack (timeout=%d ms)\n",
+               BLE_HCI_CMD_TIMEOUT_MS);
     rc = ble_npl_sem_pend(&ble_hs_hci_sem,
                           ble_npl_time_ms_to_ticks32(BLE_HCI_CMD_TIMEOUT_MS));
+    BLE_HS_LOG(INFO, "ble_hs_hci_wait_for_ack: sem_pend returned rc=%d\n", rc);
     switch (rc) {
     case 0:
         BLE_HS_DBG_ASSERT(ble_hs_hci_ack != NULL);
@@ -437,22 +442,30 @@ ble_hs_hci_cmd_tx(uint16_t opcode, const void *cmd, uint8_t cmd_len,
     struct ble_hs_hci_ack ack;
     int rc;
 
+    BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: opcode=0x%04x cmd_len=%u\n", opcode, cmd_len);
+
     ble_hs_hci_lock();
     BLE_HS_DBG_ASSERT(ble_hs_hci_ack == NULL);
 
+    BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: calling cmd_send_buf\n");
     rc = ble_hs_hci_cmd_send_buf(opcode, cmd, cmd_len);
     if (rc != 0) {
+        BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: cmd_send_buf failed rc=%d\n", rc);
         goto done;
     }
 
+    BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: cmd sent, calling wait_for_ack\n");
     rc = ble_hs_hci_wait_for_ack();
     if (rc != 0) {
+        BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: wait_for_ack failed rc=%d\n", rc);
         ble_hs_sched_reset(rc);
         goto done;
     }
 
+    BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: ack received, processing\n");
     rc = ble_hs_hci_process_ack(opcode, rsp, rsp_len, &ack);
     if (rc != 0) {
+        BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: process_ack failed rc=%d\n", rc);
         ble_hs_sched_reset(rc);
         goto done;
     }
@@ -472,6 +485,7 @@ done:
     }
 
     ble_hs_hci_unlock();
+    BLE_HS_LOG(INFO, "ble_hs_hci_cmd_tx: done rc=%d\n", rc);
     return rc;
 }
 
@@ -492,8 +506,11 @@ ble_hs_hci_send_vs_cmd(uint16_t ocf, const void *cmdbuf, uint8_t cmdlen,
 static void
 ble_hs_hci_rx_ack(uint8_t *ack_ev)
 {
+    BLE_HS_LOG(INFO, "ble_hs_hci_rx_ack: received ack_ev=%p\n", (void *)ack_ev);
+
     if (ble_npl_sem_get_count(&ble_hs_hci_sem) > 0) {
         /* This ack is unexpected; ignore it. */
+        BLE_HS_LOG(INFO, "ble_hs_hci_rx_ack: unexpected ack (sem count>0), ignoring\n");
         ble_transport_free(ack_ev);
         return;
     }
@@ -503,6 +520,7 @@ ble_hs_hci_rx_ack(uint8_t *ack_ev)
      * with the acknowledgement.
      */
     ble_hs_hci_ack = (struct ble_hci_ev *) ack_ev;
+    BLE_HS_LOG(INFO, "ble_hs_hci_rx_ack: releasing sem\n");
     ble_npl_sem_release(&ble_hs_hci_sem);
 }
 

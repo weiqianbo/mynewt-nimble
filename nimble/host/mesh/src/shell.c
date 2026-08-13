@@ -2019,12 +2019,14 @@ static int mod_pub_set(uint16_t addr, uint16_t mod_id, uint16_t cid, char *argv[
 		return -EINVAL;
 	}
 
+	printk("Model Publication begin.\n");
 	pub.transmit = BT_MESH_PUB_TRANSMIT(count, interval);
 
 	if (cid == CID_NVAL) {
 		err = bt_mesh_cfg_mod_pub_set(net.net_idx, net.dst, addr,
 					      mod_id, &pub, &status);
 	} else {
+		printk("Model bt_mesh_cfg_mod_pub_set_vnd begin.\n");
 		err = bt_mesh_cfg_mod_pub_set_vnd(net.net_idx, net.dst, addr,
 						  mod_id, cid, &pub, &status);
 	}

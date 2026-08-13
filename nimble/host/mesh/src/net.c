@@ -372,6 +372,8 @@ static void bt_mesh_net_local(struct ble_npl_event *work)
 {
 	struct os_mbuf *buf;
 
+	BT_INFO("bt_mesh_net_local: processing local queue");
+
 	while ((buf = net_buf_slist_get(&bt_mesh.local_queue))) {
 		struct bt_mesh_subnet *sub = LOOPBACK_BUF_SUB(buf);
 		struct bt_mesh_net_rx rx = {
@@ -496,7 +498,9 @@ static int loopback(const struct bt_mesh_net_tx *tx, const uint8_t *data,
 
 	net_buf_slist_put(&bt_mesh.local_queue, buf);
 
+	BT_INFO("loopback: queued msg, submitting local_work");
 	k_work_submit(&bt_mesh.local_work);
+	BT_INFO("loopback: k_work_submit returned");
 
 	return 0;
 }
@@ -525,6 +529,7 @@ int bt_mesh_net_send(struct bt_mesh_net_tx *tx, struct os_mbuf *buf,
 	/* Deliver to local network interface if necessary */
 	if (bt_mesh_fixed_group_match(tx->ctx->addr) ||
 	    bt_mesh_has_addr(tx->ctx->addr)) {
+		BT_INFO("local match: dst=0x%04x, doing loopback", tx->ctx->addr);
 		err = loopback(tx, buf->om_data, buf->om_len);
 
 		/* Local unicast messages should not go out to network */

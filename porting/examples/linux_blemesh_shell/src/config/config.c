@@ -25,7 +25,7 @@
 
 #define CONF_MAX_NAME_LEN    128
 #define CONF_MAX_VAL_LEN     1024
-#define CONF_MAX_HANDLERS    16
+#define CONF_MAX_HANDLERS    32
 #define CONF_MAX_ENTRIES     64
 #define CONF_STORAGE_FILE    "/tmp/bt_mesh_settings.conf"
 
@@ -43,19 +43,19 @@ static int num_entries;
 
 static int conf_save_to_file(void)
 {
-    FILE *f;
-    int i;
+    // FILE *f;
+    // int i;
 
-    f = fopen(CONF_STORAGE_FILE, "w");
-    if (!f) {
-        return -1;
-    }
+    // f = fopen(CONF_STORAGE_FILE, "w");
+    // if (!f) {
+    //     return -1;
+    // }
 
-    for (i = 0; i < num_entries; i++) {
-        fprintf(f, "%s=%s\n", entries[i].name, entries[i].val);
-    }
+    // for (i = 0; i < num_entries; i++) {
+    //     fprintf(f, "%s=%s\n", entries[i].name, entries[i].val);
+    // }
 
-    fclose(f);
+    // fclose(f);
     return 0;
 }
 

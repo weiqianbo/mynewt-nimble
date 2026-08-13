@@ -59,10 +59,17 @@ int bt_mesh_msg_ack_ctx_wait(struct bt_mesh_msg_ack_ctx *ack, int32_t timeout)
 {
 	int err;
 
+	BT_INFO("waiting: op=0x%08x dst=0x%04x timeout=%d",
+		ack->op, ack->dst, timeout);
+
 	err = k_sem_take(&ack->sem, timeout);
+
+	BT_INFO("k_sem_take returned: err=%d", err);
+
 	bt_mesh_msg_ack_ctx_clear(ack);
 
 	if (err == -EAGAIN) {
+		BT_INFO("ack timed out");
 		return -ETIMEDOUT;
 	}
 
