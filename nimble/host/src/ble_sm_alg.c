@@ -19,6 +19,7 @@
  */
 
 #include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 #include "syscfg/syscfg.h"
 #include "nimble/nimble_opt.h"
@@ -35,10 +36,14 @@
 #include <mbedtls/cmac.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/ecdh.h>
+#include <mbedtls/error.h>
 #if MYNEWT_VAL(TRNG)
 #include "trng/trng.h"
 #endif
 #endif
+
+#include <fcntl.h>
+#include <unistd.h>
 
 #if MYNEWT_VAL(BLE_SM_SC) && MYNEWT_VAL(TRNG)
 static struct trng_dev *g_trng;
@@ -567,7 +572,29 @@ ble_sm_alg_rng(void *arg, unsigned char *buf, size_t size)
 
     return 0;
 #else
-    return ble_hs_hci_rand(buf, size);
+    int rc = ble_hs_hci_rand(buf, size);
+    if (rc == 0) {
+        return 0;
+    }
+
+    /* HCI LE_RAND failed — fall back to /dev/urandom (Linux port) */
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        size_t off = 0;
+        while (off < size) {
+            ssize_t n = read(fd, buf + off, size - off);
+            if (n <= 0) {
+                break;
+            }
+            off += n;
+        }
+        close(fd);
+        if (off == size) {
+            return 0;
+        }
+    }
+
+    return -1;
 #endif
 }
 
@@ -581,6 +608,7 @@ ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_key_
     mbedtls_ecp_group group;
     mbedtls_ecp_point point;
     uint8_t pub_key[65];
+    int i;
 
     mbedtls_mpi_init(&priv);
     mbedtls_mpi_init(&shared);
@@ -591,36 +619,59 @@ ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_key_
     swap_buf(&pub_key[1], peer_pub_key_x, 32);
     swap_buf(&pub_key[33], peer_pub_key_y, 32);
 
+    printf("ble_sm_alg_gen_dhkey: peer_pub_key_x (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", peer_pub_key_x[i]);
+    printf("\n");
+    printf("ble_sm_alg_gen_dhkey: peer_pub_key_y (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", peer_pub_key_y[i]);
+    printf("\n");
+    printf("ble_sm_alg_gen_dhkey: pub_key (BE): ");
+    for (i = 0; i < 65; i++) printf("%02x", pub_key[i]);
+    printf("\n");
+    printf("ble_sm_alg_gen_dhkey: our_priv_key (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", our_priv_key[i]);
+    printf("\n");
+
     err = mbedtls_ecp_group_load(&group, MBEDTLS_ECP_DP_SECP256R1);
 
     if (err == 0) {
         err = mbedtls_ecp_point_read_binary(&group, &point, pub_key, sizeof(pub_key));
+        printf("ble_sm_alg_gen_dhkey: mbedtls_ecp_point_read_binary err=%d\n", err);
     }
 
     if (err == 0) {
         err = mbedtls_ecp_check_pubkey(&group, &point);
+        printf("ble_sm_alg_gen_dhkey: mbedtls_ecp_check_pubkey err=%d\n", err);
     }
 
     if (err == 0) {
         err = mbedtls_mpi_read_binary_le(&priv, our_priv_key, 32);
+        printf("ble_sm_alg_gen_dhkey: mbedtls_mpi_read_binary_le err=%d\n", err);
     }
 
     if (err == 0) {
         err = mbedtls_ecdh_compute_shared(&group, &shared, &point, &priv,
                                           ble_sm_alg_rng, NULL);
+        printf("ble_sm_alg_gen_dhkey: mbedtls_ecdh_compute_shared err=%d\n", err);
     }
 
     if (err == 0) {
         err = mbedtls_mpi_write_binary_le(&shared, out_dhkey, 32);
+        printf("ble_sm_alg_gen_dhkey: mbedtls_mpi_write_binary_le err=%d\n", err);
     }
 
     mbedtls_ecp_group_free(&group);
     mbedtls_ecp_point_free(&point);
     mbedtls_mpi_free(&priv);
     mbedtls_mpi_free(&shared);
+
     if (err) {
         return BLE_HS_EUNKNOWN;
     }
+
+    printf("ble_sm_alg_gen_dhkey: out_dhkey (LE): ");
+    for (i = 0; i < 32; i++) printf("%02x", out_dhkey[i]);
+    printf("\n");
 
     return 0;
 }
@@ -710,6 +761,17 @@ ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
 
     if (err) {
         return BLE_HS_EUNKNOWN;
+    }
+
+    /* Debug: log the generated key pair */
+    {
+        int i;
+        printf("ble_sm_alg_gen_key_pair: pub=");
+        for (i = 0; i < 64; i++) printf("%02x", pub[i]);
+        printf("\n");
+        printf("ble_sm_alg_gen_key_pair: priv=");
+        for (i = 0; i < 32; i++) printf("%02x", priv[i]);
+        printf("\n");
     }
 
 #endif

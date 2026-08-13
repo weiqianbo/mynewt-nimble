@@ -10,6 +10,8 @@
 #define BLE_NPL_LOG_MODULE BLE_MESH_PROV_LOG
 #include <nimble/nimble_npl_log.h>
 
+#include <stdio.h>
+
 #include "testing.h"
 #include "crypto.h"
 #include "adv.h"
@@ -160,10 +162,20 @@ static void send_confirm(void)
 	struct os_mbuf *cfm = PROV_BUF(PDU_LEN_CONFIRM);
 
 	uint8_t *inputs = (uint8_t *)&bt_mesh_prov_link.conf_inputs;
+	int i;
 
-	BT_DBG("ConfInputs[0]   %s", bt_hex(inputs, 64));
-	BT_DBG("ConfInputs[64]  %s", bt_hex(&inputs[64], 64));
-	BT_DBG("ConfInputs[128] %s", bt_hex(&inputs[128], 17));
+	printf("device: send_confirm ConfInputs[0]   ");
+	for (i = 0; i < 64; i++) printf("%02x", inputs[i]);
+	printf("\n");
+	printf("device: send_confirm ConfInputs[64]  ");
+	for (i = 0; i < 64; i++) printf("%02x", inputs[64 + i]);
+	printf("\n");
+	printf("device: send_confirm ConfInputs[128] ");
+	for (i = 0; i < 17; i++) printf("%02x", inputs[128 + i]);
+	printf("\n");
+	printf("device: send_confirm dhkey: ");
+	for (i = 0; i < 32; i++) printf("%02x", bt_mesh_prov_link.dhkey[i]);
+	printf("\n");
 
 	if (bt_mesh_prov_conf_salt(inputs, bt_mesh_prov_link.conf_salt)) {
 		BT_ERR("Unable to generate confirmation salt");
@@ -171,7 +183,9 @@ static void send_confirm(void)
 		return;
 	}
 
-	BT_DBG("ConfirmationSalt: %s", bt_hex(bt_mesh_prov_link.conf_salt, 16));
+	printf("device: send_confirm ConfirmationSalt: ");
+	for (i = 0; i < 16; i++) printf("%02x", bt_mesh_prov_link.conf_salt[i]);
+	printf("\n");
 
 	if (bt_mesh_prov_conf_key(bt_mesh_prov_link.dhkey, bt_mesh_prov_link.conf_salt,
 				  bt_mesh_prov_link.conf_key)) {
@@ -180,7 +194,9 @@ static void send_confirm(void)
 		return;
 	}
 
-	BT_DBG("ConfirmationKey: %s", bt_hex(bt_mesh_prov_link.conf_key, 16));
+	printf("device: send_confirm ConfirmationKey: ");
+	for (i = 0; i < 16; i++) printf("%02x", bt_mesh_prov_link.conf_key[i]);
+	printf("\n");
 
 	if (bt_rand(bt_mesh_prov_link.rand, 16)) {
 		BT_ERR("Unable to generate random number");
@@ -243,6 +259,7 @@ static void send_pub_key(void)
 {
 	struct os_mbuf *buf = PROV_BUF(PDU_LEN_PUB_KEY);
 	const uint8_t *key;
+	int i;
 
 	key = bt_pub_key_get();
 	if (!key) {
@@ -251,16 +268,28 @@ static void send_pub_key(void)
 		return;
 	}
 
+	printf("prov_device: send_pub_key local (LE): ");
+	for (i = 0; i < 64; i++) printf("%02x", key[i]);
+	printf("\n");
+
 	bt_mesh_prov_buf_init(buf, PROV_PUB_KEY);
 
 	/* Swap X and Y halves independently to big-endian */
 	sys_memcpy_swap(net_buf_simple_add(buf, BT_PUB_KEY_COORD_LEN), key, BT_PUB_KEY_COORD_LEN);
 	sys_memcpy_swap(net_buf_simple_add(buf, BT_PUB_KEY_COORD_LEN), &key[BT_PUB_KEY_COORD_LEN], 32);
 
+	printf("prov_device: send_pub_key sending (BE): ");
+	for (i = 0; i < 64; i++) printf("%02x", buf->om_data[1 + i]);
+	printf("\n");
+
 	BT_DBG("Local Public Key: %s", bt_hex(buf->om_data + 1, BT_PUB_KEY_LEN));
 
 	/* PublicKeyDevice */
 	memcpy(bt_mesh_prov_link.conf_inputs.pub_key_device, &buf->om_data[1], PDU_LEN_PUB_KEY);
+
+	printf("prov_device: pub_key_device stored: ");
+	for (i = 0; i < 64; i++) printf("%02x", bt_mesh_prov_link.conf_inputs.pub_key_device[i]);
+	printf("\n");
 
 	if (bt_mesh_prov_send(buf, public_key_sent)) {
 		BT_ERR("Failed to send Public Key");
@@ -357,8 +386,14 @@ static void prov_dh_key_gen(void)
 {
 	const uint8_t *remote_pk;
 	uint8_t remote_pk_le[BT_PUB_KEY_LEN];
+	int i;
 
 	remote_pk = bt_mesh_prov_link.conf_inputs.pub_key_provisioner;
+
+	printf("prov_device: prov_dh_key_gen remote_pk (BE): ");
+	for (i = 0; i < 64; i++) printf("%02x", remote_pk[i]);
+	printf("\n");
+
 	if (MYNEWT_VAL(BLE_MESH_PROV_OOB_PUBLIC_KEY) &&
 	    atomic_test_bit(bt_mesh_prov_link.flags, OOB_PUB_KEY)) {
 
@@ -382,6 +417,10 @@ static void prov_dh_key_gen(void)
 	sys_memcpy_swap(&remote_pk_le[BT_PUB_KEY_COORD_LEN], &remote_pk[BT_PUB_KEY_COORD_LEN],
 			BT_PUB_KEY_COORD_LEN);
 
+	printf("prov_device: prov_dh_key_gen remote_pk_le (LE): ");
+	for (i = 0; i < 64; i++) printf("%02x", remote_pk_le[i]);
+	printf("\n");
+
 	if (bt_dh_key_gen(remote_pk_le, prov_dh_key_cb)) {
 		BT_ERR("Failed to generate DHKey");
 		prov_fail(PROV_ERR_UNEXP_ERR);
@@ -390,10 +429,20 @@ static void prov_dh_key_gen(void)
 
 static void prov_pub_key(const uint8_t *data)
 {
+	int i;
+
 	BT_DBG("Remote Public Key: %s", bt_hex(data, BT_PUB_KEY_LEN));
+
+	printf("prov_device: prov_pub_key received: ");
+	for (i = 0; i < 64; i++) printf("%02x", data[i]);
+	printf("\n");
 
 	/* PublicKeyProvisioner */
 	memcpy(bt_mesh_prov_link.conf_inputs.pub_key_provisioner, data, PDU_LEN_PUB_KEY);
+
+	printf("prov_device: pub_key_provisioner stored: ");
+	for (i = 0; i < 64; i++) printf("%02x", bt_mesh_prov_link.conf_inputs.pub_key_provisioner[i]);
+	printf("\n");
 
 	if (MYNEWT_VAL(BLE_MESH_PROV_OOB_PUBLIC_KEY) &&
 	    atomic_test_bit(bt_mesh_prov_link.flags, OOB_PUB_KEY)) {

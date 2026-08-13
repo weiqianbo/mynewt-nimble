@@ -102,6 +102,7 @@ void bt_mesh_adv_send(struct os_mbuf *buf, const struct bt_mesh_send_cb *cb,
 
 	net_buf_put(&bt_mesh_adv_queue, net_buf_ref(buf));
 	bt_mesh_adv_buf_ready();
+	BT_DBG("bt_mesh_adv_send end\n");
 }
 
 static void bt_mesh_scan_cb(const bt_addr_le_t *addr, int8_t rssi,

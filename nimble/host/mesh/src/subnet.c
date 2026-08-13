@@ -620,6 +620,7 @@ int bt_mesh_subnet_set(uint16_t net_idx, uint8_t kr_phase,
 {
 	const uint8_t *keys[] = { old_key, new_key };
 	struct bt_mesh_subnet *sub;
+	int ret = 0;
 
 	sub = subnet_alloc(net_idx);
 	if (!sub) {
@@ -634,8 +635,10 @@ int bt_mesh_subnet_set(uint16_t net_idx, uint8_t kr_phase,
 		if (!keys[i]) {
 			continue;
 		}
+		ret = net_keys_create(&sub->keys[i], keys[i]);
 
-		if (net_keys_create(&sub->keys[i], keys[i])) {
+		if (ret) {
+			BT_DBG("net_keys_create err %08x", ret);
 			return -EIO;
 		}
 	}
