@@ -235,6 +235,9 @@ ble_hs_hci_evt_disconn_complete(uint8_t event_code, const void *data,
      */
     ble_hs_wakeup_tx();
 
+    /* Connection gone; cancel the flow control recovery timer. */
+    ble_hs_hci_fc_timer_stop();
+
     return 0;
 }
 
@@ -308,8 +311,18 @@ ble_hs_hci_evt_num_completed_pkts(uint8_t event_code, const void *data,
             ble_hs_lock();
             conn = ble_hs_conn_find(le16toh(ev->completed[i].handle));
             if (conn != NULL) {
+                /* If outstanding_pkts < num_pkts, this most likely means the
+                 * flow-control recovery timer already zeroed the counter and
+                 * restored credits. Do NOT reset the host; simply clamp the
+                 * counter to 0 and let ble_hs_hci_add_avail_pkts() cap the
+                 * result at ble_hs_hci_max_pkts to avoid double-crediting.
+                 */
                 if (conn->bhc_outstanding_pkts < num_pkts) {
-                    ble_hs_sched_reset(BLE_HS_ECONTROLLER);
+                    BLE_HS_LOG(WARN,
+                               "num-completed-pkts (%u) > outstanding (%u); "
+                               "FC recovery likely already refunded credits\n",
+                               num_pkts, conn->bhc_outstanding_pkts);
+                    conn->bhc_outstanding_pkts = 0;
                 } else {
                     conn->bhc_outstanding_pkts -= num_pkts;
                 }
@@ -322,6 +335,9 @@ ble_hs_hci_evt_num_completed_pkts(uint8_t event_code, const void *data,
 
     /* If any transmissions have stalled, wake them up now. */
     ble_hs_wakeup_tx();
+
+    /* Flow control recovered normally, cancel the recovery timer. */
+    ble_hs_hci_fc_timer_stop();
 
     return 0;
 }

@@ -192,6 +192,7 @@ ble_hci_sock_acl_tx(struct os_mbuf *om)
     int i;
     struct os_mbuf *m;
     uint8_t ch;
+    int pktlen;
 
     memset(&msg, 0, sizeof(msg));
     memset(iov, 0, sizeof(iov));
@@ -209,12 +210,16 @@ ble_hci_sock_acl_tx(struct os_mbuf *om)
     }
     msg.msg_iovlen = i;
 
+    pktlen = OS_MBUF_PKTLEN(om);
     STATS_INC(hci_sock_stats, omsg);
     STATS_INC(hci_sock_stats, oacl);
-    STATS_INCN(hci_sock_stats, obytes, OS_MBUF_PKTLEN(om) + 1);
-    i = sendmsg(ble_hci_sock_state.sock, &msg, 0);
+    STATS_INCN(hci_sock_stats, obytes, pktlen + 1);
+    /* Use MSG_DONTWAIT to avoid blocking the host event queue when the
+     * socket send buffer is full (e.g., during flow control recovery
+     * flushing a large bhc_tx_q backlog). */
+    i = sendmsg(ble_hci_sock_state.sock, &msg, MSG_DONTWAIT);
     os_mbuf_free_chain(om);
-    if (i != OS_MBUF_PKTLEN(om) + 1) {
+    if (i != pktlen + 1) {
         if (i < 0) {
             dprintf(1, "sendmsg() failed : %d\n", errno);
         } else {
@@ -234,6 +239,7 @@ ble_hci_sock_iso_tx(struct os_mbuf *om)
     int i;
     struct os_mbuf *m;
     uint8_t ch;
+    int pktlen;
 
     memset(&msg, 0, sizeof(msg));
     memset(iov, 0, sizeof(iov));
@@ -251,12 +257,13 @@ ble_hci_sock_iso_tx(struct os_mbuf *om)
     }
     msg.msg_iovlen = i;
 
+    pktlen = OS_MBUF_PKTLEN(om);
     STATS_INC(hci_sock_stats, omsg);
     STATS_INC(hci_sock_stats, oiso);
-    STATS_INCN(hci_sock_stats, obytes, OS_MBUF_PKTLEN(om) + 1);
-    i = sendmsg(ble_hci_sock_state.sock, &msg, 0);
+    STATS_INCN(hci_sock_stats, obytes, pktlen + 1);
+    i = sendmsg(ble_hci_sock_state.sock, &msg, MSG_DONTWAIT);
     os_mbuf_free_chain(om);
-    if (i != OS_MBUF_PKTLEN(om) + 1) {
+    if (i != pktlen + 1) {
         if (i < 0) {
             dprintf(1, "sendmsg() failed : %d\n", errno);
         } else {
@@ -302,7 +309,7 @@ ble_hci_sock_cmdevt_tx(uint8_t *hci_ev, uint8_t h4_type)
     STATS_INC(hci_sock_stats, omsg);
     STATS_INCN(hci_sock_stats, obytes, len + 1);
 
-    i = sendmsg(ble_hci_sock_state.sock, &msg, 0);
+    i = sendmsg(ble_hci_sock_state.sock, &msg, MSG_DONTWAIT);
     ble_transport_free(hci_ev);
     if (i != len + 1) {
         if (i < 0) {
@@ -354,7 +361,7 @@ ble_hci_sock_acl_tx(struct os_mbuf *om)
     STATS_INC(hci_sock_stats, oacl);
     STATS_INCN(hci_sock_stats, obytes, OS_MBUF_PKTLEN(om) + 1);
 
-    i = sendto(ble_hci_sock_state.sock, buf, len, 0, (struct sockaddr *)&addr,
+    i = sendto(ble_hci_sock_state.sock, buf, len, MSG_DONTWAIT, (struct sockaddr *)&addr,
                sizeof(struct sockaddr_hci));
 
     free(buf);
@@ -405,7 +412,7 @@ ble_hci_sock_cmdevt_tx(uint8_t *hci_ev, uint8_t h4_type)
     buf[0] = h4_type;
     memcpy(&buf[1], hci_ev, len);
 
-    i = sendto(ble_hci_sock_state.sock, buf, len + 1, 0,
+    i = sendto(ble_hci_sock_state.sock, buf, len + 1, MSG_DONTWAIT,
                (struct sockaddr *)&addr, sizeof(struct sockaddr_hci));
 
     free(buf);
@@ -433,19 +440,28 @@ ble_hci_sock_rx_msg(void)
     uint8_t *data;
     int sr;
     int rc;
+    int i;
 
     bhss = &ble_hci_sock_state;
     if (bhss->sock < 0) {
+        printf("hci_sock_rx_msg: sock<0\n");
         return -1;
     }
     len = read(bhss->sock, bhss->rx_data + bhss->rx_off,
                sizeof(bhss->rx_data) - bhss->rx_off);
     if (len < 0) {
+        // printf("hci_sock_rx_msg: read failed errno=%d\n", errno);
         return -2;
     }
     if (len == 0) {
+        printf("hci_sock_rx_msg: read returned 0\n");
         return -1;
     }
+    printf("ble_hci_sock_rx_msg read len(%u): ", len);
+    for (i = 0; i < len; i++) {
+        printf("0x%02x ", bhss->rx_data[bhss->rx_off + i]);
+    }
+    printf("\n");
     bhss->rx_off += len;
     STATS_INCN(hci_sock_stats, ibytes, len);
 
@@ -464,6 +480,7 @@ ble_hci_sock_rx_msg(void)
             STATS_INC(hci_sock_stats, icmd);
             data = ble_transport_alloc_cmd();
             if (!data) {
+                printf("hci_sock_rx_msg: alloc_cmd failed\n");
                 STATS_INC(hci_sock_stats, ierr);
                 break;
             }
@@ -472,6 +489,7 @@ ble_hci_sock_rx_msg(void)
             rc = ble_transport_to_ll_cmd(data);
             OS_EXIT_CRITICAL(sr);
             if (rc) {
+                printf("hci_sock_rx_msg: to_ll_cmd failed rc=%d\n", rc);
                 ble_transport_free(data);
                 STATS_INC(hci_sock_stats, ierr);
                 break;
@@ -490,16 +508,20 @@ ble_hci_sock_rx_msg(void)
             STATS_INC(hci_sock_stats, imsg);
             STATS_INC(hci_sock_stats, ievt);
 
+            printf("hci_sock_rx_msg: EVT len=%u ev_code=0x%02x rx_off=%u\n",
+                   len, bhss->rx_data[1], bhss->rx_off);
+
             /* There isn't much we can do if received event is too big */
             if (len - 1 > MYNEWT_VAL(BLE_TRANSPORT_EVT_SIZE)) {
+                printf("hci_sock_rx_msg: EVT too big (%d > %d)\n",
+                       len - 1, MYNEWT_VAL(BLE_TRANSPORT_EVT_SIZE));
                 STATS_INC(hci_sock_stats, ierr);
-                dprintf(1, "Too big HCI event (%d > %d), ignoring\n", len - 1,
-                        MYNEWT_VAL(BLE_TRANSPORT_EVT_SIZE));
                 return -1;
             }
 
             data = ble_transport_alloc_evt(0);
             if (!data) {
+                printf("hci_sock_rx_msg: alloc_evt failed\n");
                 STATS_INC(hci_sock_stats, ierr);
                 break;
             }
@@ -508,9 +530,15 @@ ble_hci_sock_rx_msg(void)
             rc = ble_transport_to_hs_evt(data);
             OS_EXIT_CRITICAL(sr);
             if (rc) {
+                printf("hci_sock_rx_msg: to_hs_evt failed rc=%d\n", rc);
                 ble_transport_free(data);
                 STATS_INC(hci_sock_stats, ierr);
-                return 0;
+                /* Fall through to memmove() below to drop the bad EVT
+                 * from rx buffer; do NOT return early here. Returning
+                 * early would skip the rx_off/memmove update and leave
+                 * the rx buffer stuck at this bad packet forever.
+                 */
+                // return 0;
             }
             break;
 #endif
@@ -525,16 +553,19 @@ ble_hci_sock_rx_msg(void)
             }
             STATS_INC(hci_sock_stats, imsg);
             STATS_INC(hci_sock_stats, iacl);
+            printf("hci_sock_rx_msg: ACL len=%u rx_off=%u\n", len, bhss->rx_off);
 #if MYNEWT_VAL(BLE_CONTROLLER)
             m = ble_transport_alloc_acl_from_hs();
 #else
             m = ble_transport_alloc_acl_from_ll();
 #endif
             if (!m) {
+                printf("hci_sock_rx_msg: alloc_acl failed\n");
                 STATS_INC(hci_sock_stats, imem);
                 break;
             }
             if (os_mbuf_append(m, &bhss->rx_data[1], len - 1)) {
+                printf("hci_sock_rx_msg: mbuf_append failed\n");
                 STATS_INC(hci_sock_stats, imem);
                 os_mbuf_free_chain(m);
                 break;

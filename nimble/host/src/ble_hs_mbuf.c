@@ -20,6 +20,7 @@
 #include "host/ble_hs.h"
 #include "host/ble_hs_mbuf.h"
 #include "ble_hs_priv.h"
+#include "os/os_mbuf.h"
 
 /**
  * Allocates an mbuf for use by the nimble host.
@@ -29,6 +30,8 @@ ble_hs_mbuf_gen_pkt(uint16_t leading_space)
 {
     struct os_mbuf *om;
     int rc;
+    int total;
+    int free_cnt;
 
 #if MYNEWT_VAL(BLE_CONTROLLER)
     om = os_msys_get_pkthdr(0, sizeof(struct ble_mbuf_hdr));
@@ -36,10 +39,18 @@ ble_hs_mbuf_gen_pkt(uint16_t leading_space)
     om = os_msys_get_pkthdr(0, 0);
 #endif
     if (om == NULL) {
+        total = os_msys_count();
+        free_cnt = os_msys_num_free();
+        BLE_HS_LOG(ERROR, "mbuf_alloc: os_msys_get_pkthdr failed, "
+                   "leading_space=%u total=%d free=%d\n",
+                   leading_space, total, free_cnt);
         return NULL;
     }
 
     if (om->om_omp->omp_databuf_len < leading_space) {
+        BLE_HS_LOG(ERROR, "mbuf_alloc: databuf too small, "
+                   "leading_space=%u databuf_len=%u\n",
+                   leading_space, om->om_omp->omp_databuf_len);
         rc = os_mbuf_free_chain(om);
         BLE_HS_DBG_ASSERT_EVAL(rc == 0);
         return NULL;
@@ -105,14 +116,23 @@ ble_hs_mbuf_from_flat(const void *buf, uint16_t len)
 {
     struct os_mbuf *om;
     int rc;
+    int total;
+    int free_cnt;
 
     om = ble_hs_mbuf_att_pkt();
     if (om == NULL) {
+        total = os_msys_count();
+        free_cnt = os_msys_num_free();
+        BLE_HS_LOG(ERROR, "mbuf_from_flat: mbuf_alloc failed, "
+                   "len=%u total=%d free=%d\n",
+                   len, total, free_cnt);
         return NULL;
     }
 
     rc = os_mbuf_copyinto(om, 0, buf, len);
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "mbuf_from_flat: copyinto failed, "
+                   "len=%u rc=%d\n", len, rc);
         os_mbuf_free_chain(om);
         return NULL;
     }

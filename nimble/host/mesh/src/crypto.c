@@ -26,12 +26,17 @@ int bt_mesh_aes_cmac(const uint8_t key[16], struct bt_mesh_sg *sg,
 		     size_t sg_len, uint8_t mac[16])
 {
 	mbedtls_cipher_context_t ctx;
+	const mbedtls_cipher_info_t *info;
 	int err = -EIO;
 
 	mbedtls_cipher_init(&ctx);
 
-	if (mbedtls_cipher_setup(&ctx,
-				 mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_ECB))) {
+	info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_ECB);
+	if (info == NULL) {
+		goto done;
+	}
+
+	if (mbedtls_cipher_setup(&ctx, info)) {
 		goto done;
 	}
 
@@ -40,6 +45,9 @@ int bt_mesh_aes_cmac(const uint8_t key[16], struct bt_mesh_sg *sg,
 	}
 
 	for (; sg_len; sg_len--, sg++) {
+		if (sg->len == 0) {
+			continue;
+		}
 		if (mbedtls_cipher_cmac_update(&ctx, sg->data, sg->len)) {
 			goto done;
 		}
@@ -66,7 +74,11 @@ int bt_mesh_k1(const uint8_t *ikm, size_t ikm_len, const uint8_t salt[16],
 		return err;
 	}
 
-	return bt_mesh_aes_cmac_one(okm, info, strlen(info), okm);
+	/* k1(IKM, SALT, N) = CMAC(SALT, CMAC(SALT, IKM) || N)
+	 * Second CMAC must use SALT as key, not the intermediate output.
+	 */
+	struct bt_mesh_sg sg[] = { { okm, 16 }, { info, strlen(info) } };
+	return bt_mesh_aes_cmac(salt, sg, ARRAY_SIZE(sg), okm);
 }
 
 int bt_mesh_k2(const uint8_t n[16], const uint8_t *p, size_t p_len,
@@ -87,6 +99,9 @@ int bt_mesh_k2(const uint8_t n[16], const uint8_t *p, size_t p_len,
 		return err;
 	}
 
+	/* k2(N, P) = CMAC(SALT, CMAC(SALT, N) || P || 0x01)
+	 * Key is always SALT, never the intermediate output.
+	 */
 	err = bt_mesh_aes_cmac_one(salt, n, 16, t);
 	if (err) {
 		return err;
@@ -94,25 +109,30 @@ int bt_mesh_k2(const uint8_t n[16], const uint8_t *p, size_t p_len,
 
 	pad = 0x01;
 
-	sg[0].data = NULL;
-	sg[0].len  = 0;
+	sg[0].data = t;
+	sg[0].len  = sizeof(t);
 	sg[1].data = p;
 	sg[1].len  = p_len;
 	sg[2].data = &pad;
 	sg[2].len  = sizeof(pad);
 
-	err = bt_mesh_aes_cmac(t, sg, ARRAY_SIZE(sg), out);
+	err = bt_mesh_aes_cmac(salt, sg, ARRAY_SIZE(sg), out);
 	if (err) {
 		return err;
 	}
 
 	net_id[0] = out[15] & 0x7f;
 
-	sg[0].data = out;
-	sg[0].len  = sizeof(out);
 	pad = 0x02;
 
-	err = bt_mesh_aes_cmac(t, sg, ARRAY_SIZE(sg), out);
+	sg[0].data = t;
+	sg[0].len  = sizeof(t);
+	sg[1].data = out;
+	sg[1].len  = sizeof(out);
+	sg[2].data = &pad;
+	sg[2].len  = sizeof(pad);
+
+	err = bt_mesh_aes_cmac(salt, sg, ARRAY_SIZE(sg), out);
 	if (err) {
 		return err;
 	}
@@ -121,7 +141,14 @@ int bt_mesh_k2(const uint8_t n[16], const uint8_t *p, size_t p_len,
 
 	pad = 0x03;
 
-	err = bt_mesh_aes_cmac(t, sg, ARRAY_SIZE(sg), out);
+	sg[0].data = t;
+	sg[0].len  = sizeof(t);
+	sg[1].data = out;
+	sg[1].len  = sizeof(out);
+	sg[2].data = &pad;
+	sg[2].len  = sizeof(pad);
+
+	err = bt_mesh_aes_cmac(salt, sg, ARRAY_SIZE(sg), out);
 	if (err) {
 		return err;
 	}
@@ -137,26 +164,32 @@ int bt_mesh_k2(const uint8_t n[16], const uint8_t *p, size_t p_len,
 int bt_mesh_k3(const uint8_t n[16], uint8_t out[8])
 {
 	uint8_t id64[] = { 'i', 'd', '6', '4', 0x01 };
-	uint8_t tmp[16];
+	uint8_t salt[16];
 	uint8_t t[16];
 	int err;
 
-	err = bt_mesh_s1("smk3", tmp);
+	/* k3(N) = CMAC(SALT, CMAC(SALT, N) || "id64\x01")
+	 * Key is always SALT, never the intermediate output.
+	 */
+	err = bt_mesh_s1("smk3", salt);
 	if (err) {
 		return err;
 	}
 
-	err = bt_mesh_aes_cmac_one(tmp, n, 16, t);
+	err = bt_mesh_aes_cmac_one(salt, n, 16, t);
 	if (err) {
 		return err;
 	}
 
-	err = bt_mesh_aes_cmac_one(t, id64, sizeof(id64), tmp);
+	{
+		struct bt_mesh_sg sg[] = { { t, sizeof(t) }, { id64, sizeof(id64) } };
+		err = bt_mesh_aes_cmac(salt, sg, ARRAY_SIZE(sg), t);
+	}
 	if (err) {
 		return err;
 	}
 
-	memcpy(out, tmp + 8, 8);
+	memcpy(out, t + 8, 8);
 
 	return 0;
 }
@@ -164,26 +197,32 @@ int bt_mesh_k3(const uint8_t n[16], uint8_t out[8])
 int bt_mesh_k4(const uint8_t n[16], uint8_t out[1])
 {
 	uint8_t id6[] = { 'i', 'd', '6', 0x01 };
-	uint8_t tmp[16];
+	uint8_t salt[16];
 	uint8_t t[16];
 	int err;
 
-	err = bt_mesh_s1("smk4", tmp);
+	/* k4(N) = CMAC(SALT, CMAC(SALT, N) || "id6\x01")
+	 * Key is always SALT, never the intermediate output.
+	 */
+	err = bt_mesh_s1("smk4", salt);
 	if (err) {
 		return err;
 	}
 
-	err = bt_mesh_aes_cmac_one(tmp, n, 16, t);
+	err = bt_mesh_aes_cmac_one(salt, n, 16, t);
 	if (err) {
 		return err;
 	}
 
-	err = bt_mesh_aes_cmac_one(t, id6, sizeof(id6), tmp);
+	{
+		struct bt_mesh_sg sg[] = { { t, sizeof(t) }, { id6, sizeof(id6) } };
+		err = bt_mesh_aes_cmac(salt, sg, ARRAY_SIZE(sg), t);
+	}
 	if (err) {
 		return err;
 	}
 
-	out[0] = tmp[15] & BIT_MASK(6);
+	out[0] = t[15] & BIT_MASK(6);
 
 	return 0;
 }

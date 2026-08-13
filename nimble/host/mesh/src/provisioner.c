@@ -11,6 +11,8 @@
 #define BLE_NPL_LOG_MODULE BLE_MESH_PROV_LOG
 #include <nimble/nimble_npl_log.h>
 
+#include <stdio.h>
+
 #include "testing.h"
 
 #include "crypto.h"
@@ -330,6 +332,7 @@ static void send_pub_key(void)
 {
 	struct os_mbuf *buf = PROV_BUF(PDU_LEN_PUB_KEY);
 	const uint8_t *key;
+	int i;
 
 	key = bt_pub_key_get();
 	if (!key) {
@@ -337,6 +340,10 @@ static void send_pub_key(void)
 		prov_fail(PROV_ERR_UNEXP_ERR);
 		return;
 	}
+
+	printf("provisioner: send_pub_key local (LE): ");
+	for (i = 0; i < 64; i++) printf("%02x", key[i]);
+	printf("\n");
 
 	BT_DBG("Local Public Key: %s", bt_hex(key, BT_PUB_KEY_LEN));
 
@@ -347,8 +354,16 @@ static void send_pub_key(void)
 	sys_memcpy_swap(net_buf_simple_add(buf, BT_PUB_KEY_COORD_LEN), &key[BT_PUB_KEY_COORD_LEN],
 			BT_PUB_KEY_COORD_LEN);
 
+	printf("provisioner: send_pub_key sending (BE): ");
+	for (i = 0; i < 64; i++) printf("%02x", buf->om_data[1 + i]);
+	printf("\n");
+
 	/* PublicKeyProvisioner */
 	memcpy(bt_mesh_prov_link.conf_inputs.pub_key_provisioner, &buf->om_data[1], PDU_LEN_PUB_KEY);
+
+	printf("provisioner: pub_key_provisioner stored: ");
+	for (i = 0; i < 64; i++) printf("%02x", bt_mesh_prov_link.conf_inputs.pub_key_provisioner[i]);
+	printf("\n");
 
 	if (bt_mesh_prov_send(buf, public_key_sent)) {
 		BT_ERR("Failed to send Public Key");
@@ -417,12 +432,23 @@ static void prov_dh_key_gen(void)
 
 static void prov_pub_key(const uint8_t *data)
 {
+	int i;
+
 	BT_DBG("Remote Public Key: %s", bt_hex(data, BT_PUB_KEY_LEN));
+
+	printf("provisioner: prov_pub_key received: ");
+	for (i = 0; i < 64; i++) printf("%02x", data[i]);
+	printf("\n");
 
 	atomic_set_bit(bt_mesh_prov_link.flags, REMOTE_PUB_KEY);
 
 	/* PublicKeyDevice */
 	memcpy(bt_mesh_prov_link.conf_inputs.pub_key_device, data, BT_PUB_KEY_LEN);
+
+	printf("provisioner: pub_key_device stored: ");
+	for (i = 0; i < 64; i++) printf("%02x", bt_mesh_prov_link.conf_inputs.pub_key_device[i]);
+	printf("\n");
+
 	bt_mesh_prov_link.bearer->clear_tx();
 
 	prov_dh_key_gen();
