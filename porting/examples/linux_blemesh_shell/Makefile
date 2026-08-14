@@ -17,8 +17,8 @@
 
 # Toolchain commands
 CROSS_COMPILE ?=
-CC      := ccache $(CROSS_COMPILE)gcc
-CXX     := ccache $(CROSS_COMPILE)g++
+CC      := $(CROSS_COMPILE)gcc
+CXX     := $(CROSS_COMPILE)g++
 LD      := $(CROSS_COMPILE)gcc
 AR      := $(CROSS_COMPILE)ar
 AS      := $(CROSS_COMPILE)as
@@ -56,6 +56,8 @@ SRC += \
 	./src/ble.c \
 	./shell/shell_port.c \
 	./shell/console_port.c \
+	./src/config/config.c \
+	./src/base64/base64.c \
 	$(NULL)
 
 # Add NPL and all NimBLE directories to include paths

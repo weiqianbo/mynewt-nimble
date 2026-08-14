@@ -194,6 +194,7 @@ static int send_unseg(struct bt_mesh_net_tx *tx, struct os_mbuf *sdu,
 	}
 
 send:
+	BT_INFO("send_unseg: calling bt_mesh_net_send, buf_len=%u", buf->om_len);
 	return bt_mesh_net_send(tx, buf, cb, cb_data);
 }
 
@@ -421,7 +422,7 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 		seg = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit,
 					 BUF_TIMEOUT);
 		if (!seg) {
-			BT_DBG("Allocating segment failed");
+			BT_INFO("seg_tx_send_unacked: alloc segment %u failed", tx->seg_o);
 			goto end;
 		}
 
@@ -430,11 +431,12 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 
 		tx->seg_pending++;
 
-		BT_DBG("Sending %u/%u", tx->seg_o, tx->seg_n);
+		BT_INFO("seg_tx_send_unacked: sending seg %u/%u, dst=0x%04x",
+			tx->seg_o, tx->seg_n, net_tx.ctx->addr);
 
 		err = bt_mesh_net_send(&net_tx, seg, &seg_sent_cb, tx);
 		if (err) {
-			BT_DBG("Sending segment failed");
+			BT_INFO("seg_tx_send_unacked: bt_mesh_net_send failed (err %d)", err);
 			tx->seg_pending--;
 			goto end;
 		}
@@ -468,6 +470,9 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct os_mbuf *sdu,
 	BT_DBG("src 0x%04x dst 0x%04x app_idx 0x%04x aszmic %u sdu_len %u",
 	       net_tx->src, net_tx->ctx->addr, net_tx->ctx->app_idx,
 	       net_tx->aszmic, sdu->om_len);
+
+	BT_INFO("send_seg: src=0x%04x dst=0x%04x sdu_len=%u aszmic=%u",
+		net_tx->src, net_tx->ctx->addr, sdu->om_len, net_tx->aszmic);
 
 	for (tx = NULL, i = 0; i < ARRAY_SIZE(seg_tx); i++) {
 		if (seg_tx[i].nack_count) {
@@ -573,26 +578,20 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct os_mbuf *sdu,
 
 	/* This can happen if segments only went into the Friend Queue */
 	if (IS_ENABLED(CONFIG_BT_MESH_FRIEND) && !tx->seg[0]) {
+		BT_INFO("send_seg: all segs went to Friend Queue, returning early");
 		seg_tx_reset(tx);
-
-		/* If there was a callback notify sending immediately since
-		 * there's no other way to track this (at least currently)
-		 * with the Friend Queue.
-		 */
 		send_cb_finalize(cb, cb_data);
 		return 0;
 	}
 
 	if (blocked) {
-		/* Move the sequence number, so we don't end up creating
-		 * another segmented transmission with the same SeqZero while
-		 * this one is blocked.
-		 */
+		BT_INFO("send_seg: blocked=true, returning early");
 		bt_mesh_next_seq();
-		BT_DBG("Blocked.");
 		return 0;
 	}
 
+	BT_INFO("send_seg: calling seg_tx_send_unacked, seg_n=%u nack_count=%u",
+		tx->seg_n, tx->nack_count);
 	seg_tx_send_unacked(tx);
 
 	if (IS_ENABLED(CONFIG_BT_MESH_LOW_POWER) &&
@@ -628,6 +627,9 @@ int bt_mesh_trans_send(struct bt_mesh_net_tx *tx, struct os_mbuf *msg,
 	const uint8_t *key;
 	uint8_t aid;
 	int err;
+
+	BT_INFO("dst=0x%04x app_idx=0x%04x send_ttl=%u msg_len=%u",
+		tx->ctx->addr, tx->ctx->app_idx, tx->ctx->send_ttl, msg->om_len);
 
 	if (msg->om_len < 1) {
 		BT_ERR("Zero-length SDU not allowed");
@@ -686,8 +688,10 @@ int bt_mesh_trans_send(struct bt_mesh_net_tx *tx, struct os_mbuf *msg,
 	}
 
 	if (tx->ctx->send_rel) {
+		BT_INFO("send_rel=true, calling send_seg (msg_len=%u)", msg->om_len);
 		err = send_seg(tx, msg, cb, cb_data, NULL);
 	} else {
+		BT_INFO("send_rel=false, calling send_unseg (msg_len=%u)", msg->om_len);
 		err = send_unseg(tx, msg, cb, cb_data, NULL);
 	}
 
@@ -1555,6 +1559,9 @@ int bt_mesh_trans_recv(struct os_mbuf *buf, struct bt_mesh_net_rx *rx)
 	struct net_buf_simple_state state;
 	uint8_t seg_count = 0;
 	int err;
+
+	BT_INFO("src=0x%04x dst=0x%04x net_if=%u len=%u",
+		rx->ctx.addr, rx->ctx.recv_dst, rx->net_if, buf->om_len);
 
 	if (IS_ENABLED(CONFIG_BT_MESH_FRIEND)) {
 		rx->friend_match = bt_mesh_friend_match(rx->sub->net_idx,

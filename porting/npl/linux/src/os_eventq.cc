@@ -19,6 +19,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "nimble/nimble_npl.h"
@@ -67,6 +68,21 @@ ble_npl_eventq_inited(const struct ble_npl_eventq *evq)
 void
 ble_npl_eventq_put(struct ble_npl_eventq *evq, struct ble_npl_event *ev)
 {
+    if (evq == NULL) {
+        printf("ble_npl_eventq_put: evq is NULL, ev=%p\n", (void *)ev);
+        return;
+    }
+
+    if (evq->q == NULL) {
+        printf("ble_npl_eventq_put: evq->q is NULL, evq=%p ev=%p\n", (void *)evq, (void *)ev);
+        return;
+    }
+
+    if (ev == NULL) {
+        printf("ble_npl_eventq_put: ev is NULL\n");
+        return;
+    }
+
     wqueue_t *q = static_cast<wqueue_t *>(evq->q);
 
     if (ev->ev_queued) {

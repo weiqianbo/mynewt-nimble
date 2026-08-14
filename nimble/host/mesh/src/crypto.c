@@ -26,12 +26,17 @@ int bt_mesh_aes_cmac(const uint8_t key[16], struct bt_mesh_sg *sg,
 		     size_t sg_len, uint8_t mac[16])
 {
 	mbedtls_cipher_context_t ctx;
+	const mbedtls_cipher_info_t *info;
 	int err = -EIO;
 
 	mbedtls_cipher_init(&ctx);
 
-	if (mbedtls_cipher_setup(&ctx,
-				 mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_ECB))) {
+	info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_ECB);
+	if (info == NULL) {
+		goto done;
+	}
+
+	if (mbedtls_cipher_setup(&ctx, info)) {
 		goto done;
 	}
 
@@ -40,6 +45,9 @@ int bt_mesh_aes_cmac(const uint8_t key[16], struct bt_mesh_sg *sg,
 	}
 
 	for (; sg_len; sg_len--, sg++) {
+		if (sg->len == 0) {
+			continue;
+		}
 		if (mbedtls_cipher_cmac_update(&ctx, sg->data, sg->len)) {
 			goto done;
 		}

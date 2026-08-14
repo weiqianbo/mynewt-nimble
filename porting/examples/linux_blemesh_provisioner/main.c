@@ -43,39 +43,34 @@ void ble_store_config_init(void);
 
 #define TASK_DEFAULT_PRIORITY       1
 #define TASK_DEFAULT_STACK          NULL
-#define TASK_DEFAULT_STACK_SIZE     (1024 * 1024)
+#define TASK_DEFAULT_STACK_SIZE     400
 
-void *
-ble_hci_sock_task(void *param)
+void *ble_hci_sock_task(void *param)
 {
     ble_hci_sock_ack_handler(param);
     return NULL;
 }
 
-void *
-ble_host_task(void *param)
+void *ble_host_task(void *param)
 {
     nimble_host_task(param);
     return NULL;
 }
 
-void *
-ble_mesh_adv_task(void *param)
+void *ble_mesh_adv_task(void *param)
 {
     mesh_adv_thread(param);
     return NULL;
 }
 
-void
-mesh_initialized(void)
+void mesh_initialized(void)
 {
     ble_npl_task_init(&s_task_mesh_adv, "ble_mesh_adv", ble_mesh_adv_task,
                       NULL, TASK_DEFAULT_PRIORITY, BLE_NPL_TIME_FOREVER,
                       TASK_DEFAULT_STACK, TASK_DEFAULT_STACK_SIZE);
 }
 
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     int ret = 0;
 

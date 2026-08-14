@@ -17,8 +17,8 @@
 
 # Toolchain commands
 CROSS_COMPILE ?=
-CC      := ccache $(CROSS_COMPILE)gcc
-CXX     := ccache $(CROSS_COMPILE)g++
+CC      := $(CROSS_COMPILE)gcc
+CXX     := $(CROSS_COMPILE)g++
 LD      := $(CROSS_COMPILE)gcc
 AR      := $(CROSS_COMPILE)ar
 AS      := $(CROSS_COMPILE)as
