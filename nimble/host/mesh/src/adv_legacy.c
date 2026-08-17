@@ -214,6 +214,7 @@ void bt_mesh_adv_init(void)
 	assert(rc == 0);
 
 	ble_npl_eventq_init(&bt_mesh_adv_queue);
+	BT_INFO("ble_npl_eventq_init bt_mesh_adv_queue init BLE_MESH_ADV_LEGACY.\n");
 
 #ifdef MYNEWT
 	os_task_init(&adv_task, "mesh_adv", mesh_adv_thread, NULL,

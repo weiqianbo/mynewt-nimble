@@ -314,6 +314,8 @@ void bt_mesh_adv_init(void)
 
     ble_npl_eventq_init(&bt_mesh_adv_queue);
 
+	BT_INFO("ble_npl_eventq_init bt_mesh_adv_queue init BLE_MESH_ADV_EXT.\n");
+
 	k_work_init_delayable(&adv.work, send_pending_adv);
 }
 
