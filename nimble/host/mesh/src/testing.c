@@ -34,13 +34,13 @@ void bt_test_cb_unregister(struct bt_test_cb *cb)
 }
 
 void bt_test_mesh_net_recv(uint8_t ttl, uint8_t ctl, uint16_t src, uint16_t dst,
-			   const void *payload, size_t payload_len)
+			   uint32_t seq, const void *payload, size_t payload_len)
 {
 	struct bt_test_cb *cb;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&cb_slist, cb, node) {
 		if (cb->mesh_net_recv) {
-			cb->mesh_net_recv(ttl, ctl, src, dst, payload,
+			cb->mesh_net_recv(ttl, ctl, src, dst, seq, payload,
 					  payload_len);
 		}
 	}

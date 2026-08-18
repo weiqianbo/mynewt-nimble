@@ -495,6 +495,42 @@ k_work_add_arg_delayable(struct k_work_delayable *w, void *arg)
     k_work_add_arg(&w->work, arg);
 }
 
+/* Deferred host-API call: see mesh_host_call() in mesh/glue.h. */
+static struct ble_npl_sem mesh_host_call_sem;
+static struct ble_npl_event mesh_host_call_ev;
+static int (*mesh_host_call_fn)(void);
+static int mesh_host_call_rc;
+
+static void
+mesh_host_call_ev_cb(struct ble_npl_event *ev)
+{
+    mesh_host_call_rc = mesh_host_call_fn();
+    ble_npl_sem_release(&mesh_host_call_sem);
+}
+
+void
+mesh_host_call_init(void)
+{
+    ble_npl_sem_init(&mesh_host_call_sem, 0);
+    ble_npl_event_init(&mesh_host_call_ev, mesh_host_call_ev_cb, NULL);
+}
+
+int
+mesh_host_call(int (*fn)(void))
+{
+    mesh_host_call_fn = fn;
+
+#ifndef MYNEWT
+    ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &mesh_host_call_ev);
+#else
+    ble_npl_eventq_put(ble_npl_eventq_dflt_get(), &mesh_host_call_ev);
+#endif
+
+    ble_npl_sem_pend(&mesh_host_call_sem, BLE_NPL_TIME_FOREVER);
+
+    return mesh_host_call_rc;
+}
+
 ble_npl_time_t
 k_work_delayable_remaining_get (struct k_work_delayable *w)
 {

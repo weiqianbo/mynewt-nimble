@@ -1581,7 +1581,8 @@ int bt_mesh_trans_recv(struct os_mbuf *buf, struct bt_mesh_net_rx *rx)
 
 	if (IS_ENABLED(CONFIG_BT_TESTING)) {
 		bt_test_mesh_net_recv(rx->ctx.recv_ttl, rx->ctl, rx->ctx.addr,
-				      rx->ctx.recv_dst, buf->om_data, buf->om_len);
+				      rx->ctx.recv_dst, rx->seq,
+				      buf->om_data, buf->om_len);
 	}
 
 	/* If LPN mode is enabled messages are only accepted when we've
