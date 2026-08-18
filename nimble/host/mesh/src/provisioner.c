@@ -109,7 +109,11 @@ static void send_start(void)
 	bt_mesh_prov_buf_init(start, PROV_START);
 	net_buf_simple_add_u8(start, PROV_ALG_P256);
 
-	memcpy(bt_mesh_prov_link.conf_inputs.start, &start->om_data[1], PDU_LEN_START);
+	memcpy(bt_mesh_prov_link.conf_inputs.start, &start->om_data[1], PDU_LEN_INVITE);
+	bt_mesh_prov_link.conf_inputs.start[1] = 0;
+	bt_mesh_prov_link.conf_inputs.start[2] = 0;
+	bt_mesh_prov_link.conf_inputs.start[3] = 0;
+	bt_mesh_prov_link.conf_inputs.start[4] = 0;
 
 	if (atomic_test_bit(bt_mesh_prov_link.flags, REMOTE_PUB_KEY) && oob_pub_key) {
 		net_buf_simple_add_u8(start, PUB_KEY_OOB);
@@ -124,6 +128,12 @@ static void send_start(void)
 
 	net_buf_simple_add_u8(start, bt_mesh_prov_link.oob_size);
 
+	/* Record the exact Start PDU payload as transmitted. This must happen
+	 * after the PDU is fully assembled: copying earlier reads bytes from
+	 * the mbuf pool that have not been written yet, so ConfirmationInputs
+	 * would not match what the provisionee receives on the wire and the
+	 * confirmation check fails.
+	 */
 	memcpy(bt_mesh_prov_link.conf_inputs.invite, &start->om_data[1], PDU_LEN_INVITE);
 
 	if (bt_mesh_prov_auth(true, bt_mesh_prov_link.oob_method,
