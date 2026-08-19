@@ -63,12 +63,18 @@ static const uint8_t app_key[16] = {
     0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa
 };
 
+/* Number of devices to provision before starting message exchange */
+#define NUM_PROVISION_DEVICES 2
+
 /* Flag to prevent duplicate provisioning attempts */
 static bool provisioning_in_progress;
 
 /* Timer for periodic messages from provisioner */
 static struct ble_npl_callout msg_send_callout;
-static uint16_t last_node_addr;
+
+/* Track provisioned device addresses */
+static uint16_t provisioned_addrs[NUM_PROVISION_DEVICES];
+static int provisioned_count;
 
 /* Forward declarations */
 void mesh_initialized(void);
@@ -250,7 +256,14 @@ static void unprovisioned_beacon(uint8_t uuid[16],
         return;
     }
 
-    console_printf("Unprovisioned beacon received\n");
+    if (provisioned_count >= NUM_PROVISION_DEVICES) {
+        console_printf("All %d devices provisioned, skipping beacon\n",
+                       NUM_PROVISION_DEVICES);
+        return;
+    }
+
+    console_printf("Unprovisioned beacon received (device %d/%d)\n",
+                   provisioned_count + 1, NUM_PROVISION_DEVICES);
     console_printf("  UUID: %s\n", bt_hex(uuid, 16));
     console_printf("  OOB Info: 0x%02x\n", oob_info);
 
@@ -283,10 +296,11 @@ static const struct bt_mesh_prov prov = {
 static void msg_send_work(struct ble_npl_event *ev)
 {
     uint32_t ticks;
+    int i;
 
     (void)ev;
-    if (last_node_addr != BT_MESH_ADDR_UNASSIGNED) {
-        send_msg_to_node(&vnd_models[TEST_VND_IDX], last_node_addr);
+    for (i = 0; i < provisioned_count; i++) {
+        send_msg_to_node(&vnd_models[TEST_VND_IDX], provisioned_addrs[i]);
     }
     ble_npl_time_ms_to_ticks(3000, &ticks);
     ble_npl_callout_reset(&msg_send_callout, ticks);
@@ -344,7 +358,6 @@ blemesh_on_sync(void)
 {
     int err;
     uint8_t net_key[16];
-    uint32_t ticks;
     int i;
 
     console_printf("Bluetooth initialized\n");
@@ -446,12 +459,14 @@ blemesh_on_sync(void)
     /* Set no authentication method for provisioning */
     bt_mesh_auth_method_set_none();
 
-    /* Initialize callouts */
-    last_node_addr = BT_MESH_ADDR_UNASSIGNED;
+    /* Initialize callouts and provisioned device tracking */
+    provisioned_count = 0;
+    memset(provisioned_addrs, 0, sizeof(provisioned_addrs));
     ble_npl_callout_init(&msg_send_callout, nimble_port_get_dflt_eventq(),
                          msg_send_work, NULL);
 
-    console_printf("Provisioner ready, waiting for unprovisioned nodes...\n");
+    console_printf("Provisioner ready, waiting for %d unprovisioned nodes...\n",
+                   NUM_PROVISION_DEVICES);
 }
 
 static void prov_node_added(uint16_t net_idx, uint8_t uuid[16], uint16_t addr,
@@ -467,13 +482,13 @@ static void prov_node_added(uint16_t net_idx, uint8_t uuid[16], uint16_t addr,
 
     provisioning_in_progress = false;
 
-    /* Save node address for periodic messages */
-    last_node_addr = addr;
-
-    /* Start periodic messages to the node (1s delay to allow mesh stack to settle) */
-    console_printf("Starting periodic messages to node 0x%04x\n", addr);
-    ble_npl_time_ms_to_ticks(1000, &ticks);
-    ble_npl_callout_reset(&msg_send_callout, ticks);
+    /* Store the provisioned node address */
+    if (provisioned_count < NUM_PROVISION_DEVICES) {
+        provisioned_addrs[provisioned_count] = addr;
+        provisioned_count++;
+        console_printf("Stored node 0x%04x (%d/%d provisioned)\n",
+                       addr, provisioned_count, NUM_PROVISION_DEVICES);
+    }
 
     /* Print CDB contents */
     if (atomic_test_bit(bt_mesh_cdb.flags, BT_MESH_CDB_VALID)) {
@@ -507,6 +522,26 @@ static void prov_node_added(uint16_t net_idx, uint8_t uuid[16], uint16_t addr,
             }
         }
     }
+
+    /* Start periodic messages only after all devices are provisioned */
+    if (provisioned_count >= NUM_PROVISION_DEVICES) {
+        int j;
+
+        console_printf("\nAll %d devices provisioned! Starting periodic messages...\n",
+                       NUM_PROVISION_DEVICES);
+        console_printf("Provisioned addresses:");
+        for (j = 0; j < provisioned_count; j++) {
+            console_printf(" 0x%04x", provisioned_addrs[j]);
+        }
+        console_printf("\n");
+
+        /* Send initial messages after 1s delay to allow mesh stack to settle */
+        ble_npl_time_ms_to_ticks(1000, &ticks);
+        ble_npl_callout_reset(&msg_send_callout, ticks);
+    } else {
+        console_printf("Waiting for more devices to provision (%d/%d done)...\n",
+                       provisioned_count, NUM_PROVISION_DEVICES);
+    }
 }
 
 void
@@ -521,4 +556,4 @@ nimble_host_task(void *param)
     ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
 
     nimble_port_run();
-}
+}

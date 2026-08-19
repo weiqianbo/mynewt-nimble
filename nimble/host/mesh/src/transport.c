@@ -131,7 +131,19 @@ static struct seg_rx {
 } seg_rx[CONFIG_BT_MESH_RX_SEG_MSG_COUNT];
 
 
-char _k_mem_slab_buffer_[OS_ALIGN((BT_MESH_APP_SEG_SDU_MAX)*(CONFIG_BT_MESH_SEG_BUFS), OS_ALIGNMENT)];
+/*
+ * The memslab free list (create_free_list()) walks num_blocks blocks of
+ * block_size bytes, so the backing buffer must be sized with the SAME
+ * aligned block size.  On 64-bit builds OS_ALIGN(12, 8) == 16, while
+ * OS_ALIGN(12 * 64, 8) == 768: using the latter (aligned *product*) leaves
+ * the buffer 256 bytes short, the free list runs past the end of the array,
+ * and every segment handed out by k_mem_slab_alloc() points outside the
+ * buffer, so segment payloads overwrite whatever the linker placed after
+ * this array in .bss (e.g. seg_tx/seg_rx state including the seg_rx ack
+ * work's POSIX timer handle and event-queue pointer) -> crash.
+ */
+char _k_mem_slab_buffer_[OS_ALIGN(BT_MESH_APP_SEG_SDU_MAX, OS_ALIGNMENT) *
+			 CONFIG_BT_MESH_SEG_BUFS];
 
 struct k_mem_slab segs = {
 	.num_blocks = CONFIG_BT_MESH_SEG_BUFS,
