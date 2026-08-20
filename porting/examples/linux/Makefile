@@ -38,6 +38,7 @@ NIMBLE_IGNORE := $(NIMBLE_ROOT)/porting/nimble/src/hal_timer.c \
 	$(NULL)
 
 include $(NIMBLE_ROOT)/porting/nimble/Makefile.defs
+include $(NIMBLE_ROOT)/porting/nimble/Makefile.mesh
 
 SRC := $(NIMBLE_SRC)
 
@@ -52,13 +53,17 @@ SRC += \
 SRC += \
 	./ble.c \
 	./main.c \
+	./config/config.c \
+	./base64/base64.c \
 	$(NULL)
 
 # Add NPL and all NimBLE directories to include paths
 INC = \
     ./include \
 	$(NIMBLE_ROOT)/porting/npl/linux/include \
+	$(NIMBLE_ROOT)/porting/npl/linux/src \
 	$(NIMBLE_ROOT)/nimble/transport/socket/include \
+	$(NIMBLE_ROOT)/nimble/host/mesh/src \
 	$(NIMBLE_INCLUDE) \
 	$(NULL)
 
