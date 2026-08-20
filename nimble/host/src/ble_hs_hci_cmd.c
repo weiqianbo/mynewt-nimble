@@ -49,9 +49,12 @@ ble_hs_hci_cmd_send(uint16_t opcode, uint8_t len, const void *cmddata)
     struct ble_hci_cmd *cmd;
     int rc;
 
+    // BLE_HS_LOG(INFO, "ble_hs_hci_cmd_send: opcode=0x%04x len=%u\n", opcode, len);
+
     cmd = ble_transport_alloc_cmd();
     BLE_HS_DBG_ASSERT(cmd != NULL);
     if (cmd == NULL) {
+        BLE_HS_LOG(INFO, "ble_hs_hci_cmd_send: alloc_cmd failed\n");
         return BLE_HS_ENOMEM;
     }
 
@@ -61,12 +64,14 @@ ble_hs_hci_cmd_send(uint16_t opcode, uint8_t len, const void *cmddata)
         memcpy(cmd->data, cmddata, len);
     }
 
+    // BLE_HS_LOG(INFO, "ble_hs_hci_cmd_send: calling ble_transport_to_ll_cmd\n");
     rc = ble_hs_hci_cmd_transport(cmd);
 
     if (rc == 0) {
         STATS_INC(ble_hs_stats, hci_cmd);
+        // BLE_HS_LOG(INFO, "ble_hs_hci_cmd_send: transport OK\n");
     } else {
-        BLE_HS_LOG(DEBUG, "ble_hs_hci_cmd_send failure; rc=%d\n", rc);
+        BLE_HS_LOG(INFO, "ble_hs_hci_cmd_send: transport failed rc=%d\n", rc);
     }
 
     return rc;

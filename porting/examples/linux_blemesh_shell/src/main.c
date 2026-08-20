@@ -43,7 +43,7 @@ void ble_store_config_init(void);
 
 #define TASK_DEFAULT_PRIORITY       1
 #define TASK_DEFAULT_STACK          NULL
-#define TASK_DEFAULT_STACK_SIZE     400
+#define TASK_DEFAULT_STACK_SIZE     (1024 * 1024)
 
 void *
 ble_hci_sock_task(void *param)

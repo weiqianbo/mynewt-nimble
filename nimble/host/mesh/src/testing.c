@@ -34,13 +34,13 @@ void bt_test_cb_unregister(struct bt_test_cb *cb)
 }
 
 void bt_test_mesh_net_recv(uint8_t ttl, uint8_t ctl, uint16_t src, uint16_t dst,
-			   const void *payload, size_t payload_len)
+			   uint32_t seq, const void *payload, size_t payload_len)
 {
 	struct bt_test_cb *cb;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&cb_slist, cb, node) {
 		if (cb->mesh_net_recv) {
-			cb->mesh_net_recv(ttl, ctl, src, dst, payload,
+			cb->mesh_net_recv(ttl, ctl, src, dst, seq, payload,
 					  payload_len);
 		}
 	}
@@ -164,7 +164,7 @@ void bt_test_print_credentials(void)
 	{
 		sub = bt_mesh_cdb_subnet_get(i);
 		app_key = &bt_mesh_cdb.app_keys[i];
-		if (sub[i].net_idx == BT_MESH_KEY_UNUSED) {
+		if (sub->net_idx == BT_MESH_KEY_UNUSED) {
 			continue;
 		}
 
@@ -172,7 +172,7 @@ void bt_test_print_credentials(void)
 
 		console_printf("Friend cred: %d\n", i);
 		console_printf("\tNetKeyIdx: %04x\n",
-			       sub[i].net_idx);
+			       sub->net_idx);
 		if (subnet) {
 			console_printf("\tNID: %02x\n", subnet->keys->msg.nid);
 			console_printf("\tEncKey: %s\n",

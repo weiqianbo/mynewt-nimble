@@ -24,6 +24,7 @@
 #include <errno.h>
 
 #include "syscfg/syscfg.h"
+#include "sysinit/sysinit.h"
 #include "nimble/nimble_npl.h"
 
 #include "os/os_mbuf.h"
@@ -431,6 +432,20 @@ void k_work_add_arg_delayable(struct k_work_delayable *w, void *arg);
 ble_npl_time_t k_work_delayable_remaining_get(struct k_work_delayable *w);
 void k_work_schedule(struct k_work_delayable *w, uint32_t ms);
 uint32_t k_ticks_to_ms_floor32(ble_npl_time_t ticks);
+
+/*
+ * Defer execution of a NimBLE host API call to the host task and wait for
+ * its completion.  The host stack is single-threaded: ble_gap_* etc. must
+ * run on the task that services the default event queue (nimble_port_run),
+ * so tasks such as the mesh advertising thread have to delegate their host
+ * API calls here instead of calling them directly.
+ *
+ * Notes:
+ *  o Must NOT be called from the host task itself (would deadlock).
+ *  o Not re-entrant: only one caller at a time.
+ */
+void mesh_host_call_init(void);
+int mesh_host_call(int (*fn)(void));
 
 static inline void net_buf_simple_save(struct os_mbuf *buf,
                        struct net_buf_simple_state *state)

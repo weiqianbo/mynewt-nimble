@@ -537,9 +537,9 @@ int bt_mesh_msg_send(struct bt_mesh_msg_ctx *ctx, struct os_mbuf *buf, uint16_t 
 		.src = src_addr,
 	};
 
-	BT_DBG("net_idx 0x%04x app_idx 0x%04x dst 0x%04x", tx.ctx->net_idx,
-	       tx.ctx->app_idx, tx.ctx->addr);
-	BT_DBG("len %u: %s", buf->om_len, bt_hex(buf->om_data, buf->om_len));
+	BT_INFO("net_idx=0x%04x app_idx=0x%04x dst=0x%04x src=0x%04x len=%u",
+		tx.ctx->net_idx, tx.ctx->app_idx, tx.ctx->addr, tx.src,
+		buf->om_len);
 
 	if (!bt_mesh_is_provisioned()) {
 		BT_ERR("Local node is not yet provisioned");
@@ -673,16 +673,15 @@ void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct os_mbuf *buf)
 	uint32_t opcode;
 	int i;
 
-	BT_DBG("app_idx 0x%04x src 0x%04x dst 0x%04x", rx->ctx.app_idx,
-	       rx->ctx.addr, rx->ctx.recv_dst);
-	BT_DBG("len %u: %s", buf->om_len, bt_hex(buf->om_data, buf->om_len));
+	BT_INFO("app_idx=0x%04x src=0x%04x dst=0x%04x len=%u",
+		rx->ctx.app_idx, rx->ctx.addr, rx->ctx.recv_dst, buf->om_len);
 
 	if (get_opcode(buf, &opcode) < 0) {
 		BT_WARN("Unable to decode OpCode");
 		return;
 	}
 
-	BT_DBG("OpCode 0x%08x", (unsigned) opcode);
+	BT_INFO("OpCode=0x%08x", (unsigned) opcode);
 
 	for (i = 0; i < dev_comp->elem_count; i++) {
 		struct net_buf_simple_state state;

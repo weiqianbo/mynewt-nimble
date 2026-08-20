@@ -34,7 +34,7 @@ extern "C" {
  */
 struct bt_test_cb {
 	void (*mesh_net_recv)(uint8_t ttl, uint8_t ctl, uint16_t src, uint16_t dst,
-			      const void *payload, size_t payload_len);
+			      uint32_t seq, const void *payload, size_t payload_len);
 	void (*mesh_model_bound)(uint16_t addr, struct bt_mesh_model *model,
 				 uint16_t key_idx);
 	void (*mesh_model_unbound)(uint16_t addr, struct bt_mesh_model *model,
@@ -57,6 +57,7 @@ void bt_test_cb_register(struct bt_test_cb *cb);
  */
 void bt_test_cb_unregister(struct bt_test_cb *cb);
 
+#if MYNEWT_VAL(BLE_MESH_LOW_POWER)
 /** Send Friend Subscription List Add message.
  *
  *  Used by Low Power node to send the group address for which messages are to
@@ -80,6 +81,7 @@ int bt_test_mesh_lpn_group_add(uint16_t group);
  *  @return Zero on success or (negative) error code otherwise.
  */
 int bt_test_mesh_lpn_group_remove(uint16_t *groups, size_t groups_count);
+#endif
 
 /** Clear replay protection list cache.
  *

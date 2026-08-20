@@ -422,11 +422,11 @@ void mesh_initialized(void);
 
 void
 net_recv_ev(uint8_t ttl, uint8_t ctl, uint16_t src, uint16_t dst,
-            const void *payload, size_t payload_len)
+            uint32_t seq, const void *payload, size_t payload_len)
 {
     console_printf("Received net packet: ttl 0x%02x ctl 0x%02x src 0x%04x "
-                   "dst 0x%04x " "payload_len %d\n", ttl, ctl, src, dst,
-                   payload_len);
+                   "dst 0x%04x seq 0x%06x payload_len %d\n", ttl, ctl, src, dst,
+                   seq, payload_len);
 }
 
 static void

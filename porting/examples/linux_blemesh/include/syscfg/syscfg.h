@@ -712,7 +712,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MAX_CONNECTIONS
-#define MYNEWT_VAL_BLE_MAX_CONNECTIONS (1)
+#define MYNEWT_VAL_BLE_MAX_CONNECTIONS (16)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MAX_PERIODIC_SYNCS
@@ -856,7 +856,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_EATT_MTU
-#define MYNEWT_VAL_BLE_EATT_MTU (128)
+#define MYNEWT_VAL_BLE_EATT_MTU (256)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_GAP_MAX_PENDING_CONN_PARAM_UPDATE
@@ -1124,7 +1124,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_STORE_MAX_BONDS
-#define MYNEWT_VAL_BLE_STORE_MAX_BONDS (3)
+#define MYNEWT_VAL_BLE_STORE_MAX_BONDS (16)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_STORE_MAX_CCCDS
@@ -1192,7 +1192,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_CDB
-#define MYNEWT_VAL_BLE_MESH_CDB (0)
+#define MYNEWT_VAL_BLE_MESH_CDB (1)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_CDB_APP_KEY_COUNT
@@ -1248,7 +1248,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_FRIEND
-#define MYNEWT_VAL_BLE_MESH_FRIEND (1)
+#define MYNEWT_VAL_BLE_MESH_FRIEND (0)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_FRIEND_ENABLED
@@ -1300,7 +1300,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_HEALTH_CLI
-#define MYNEWT_VAL_BLE_MESH_HEALTH_CLI (0)
+#define MYNEWT_VAL_BLE_MESH_HEALTH_CLI (1)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_HEARTBEAT_LOG_LVL
@@ -1340,7 +1340,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_LOW_POWER
-#define MYNEWT_VAL_BLE_MESH_LOW_POWER (1)
+#define MYNEWT_VAL_BLE_MESH_LOW_POWER (0)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_LOW_POWER_LOG_LVL
@@ -1440,7 +1440,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_NET_BUF_USER_DATA_SIZE
-#define MYNEWT_VAL_BLE_MESH_NET_BUF_USER_DATA_SIZE (4)
+#define MYNEWT_VAL_BLE_MESH_NET_BUF_USER_DATA_SIZE (8)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_NET_KEYS_LOG_LVL
@@ -1608,7 +1608,7 @@
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_SETTINGS
-#define MYNEWT_VAL_BLE_MESH_SETTINGS (0)
+#define MYNEWT_VAL_BLE_MESH_SETTINGS (1)
 #endif
 
 #ifndef MYNEWT_VAL_BLE_MESH_SETTINGS_LOG_LVL
@@ -2016,11 +2016,11 @@
 #endif
 
 #ifndef MYNEWT_VAL_APP_NAME
-#define MYNEWT_VAL_APP_NAME "dummy_app"
+#define MYNEWT_VAL_APP_NAME "linux_blemesh_provisioner"
 #endif
 
-#ifndef MYNEWT_VAL_APP_dummy_app
-#define MYNEWT_VAL_APP_dummy_app (1)
+#ifndef MYNEWT_VAL_APP_linux_blemesh_provisioner
+#define MYNEWT_VAL_APP_linux_blemesh_provisioner (1)
 #endif
 
 #ifndef MYNEWT_VAL_ARCH_NAME
@@ -2048,11 +2048,11 @@
 #endif
 
 #ifndef MYNEWT_VAL_TARGET_NAME
-#define MYNEWT_VAL_TARGET_NAME "linux_blemesh"
+#define MYNEWT_VAL_TARGET_NAME "linux_blemesh_provisioner"
 #endif
 
-#ifndef MYNEWT_VAL_TARGET_linux_blemesh
-#define MYNEWT_VAL_TARGET_linux_blemesh (1)
+#ifndef MYNEWT_VAL_TARGET_linux_blemesh_provisioner
+#define MYNEWT_VAL_TARGET_linux_blemesh_provisioner (1)
 #endif
 
 #define MYNEWT_PKG_apache_mynewt_core__compiler_sim 1
@@ -2097,8 +2097,7 @@
 #define MYNEWT_PKG_apache_mynewt_nimble__nimble_transport 1
 #define MYNEWT_PKG_apache_mynewt_nimble__nimble_transport_socket 1
 #define MYNEWT_PKG_apache_mynewt_nimble__porting_npl_mynewt 1
-#define MYNEWT_PKG_apache_mynewt_nimble__porting_targets_dummy_app 1
-#define MYNEWT_PKG_apache_mynewt_nimble__porting_targets_linux_blemesh 1
+#define MYNEWT_PKG_apache_mynewt_nimble__porting_targets_linux_blemesh_provisioner 1
 
 #define MYNEWT_API_TRNG_HW_IMPL 1
 #define MYNEWT_API_ble_transport 1

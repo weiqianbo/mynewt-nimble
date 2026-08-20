@@ -40,6 +40,31 @@
 #define LOOPBACK_USER_DATA_SIZE sizeof(struct bt_mesh_subnet *)
 #define LOOPBACK_BUF_SUB(buf) (*(struct bt_mesh_subnet **)net_buf_user_data(buf))
 
+/*
+ * The loopback queue (bt_mesh.local_queue) is filled by loopback() from
+ * whichever task originates a network send (the host task, the mesh shell
+ * task or a callout), while bt_mesh_net_local() and
+ * bt_mesh_net_loopback_clear() drain/modify it from the host task.  The
+ * underlying net_buf_slist_* helpers in glue.c only take a critical section
+ * around the removal, not around insertion, so the queue must be protected
+ * with a dedicated mutex.  Note that the lock is only taken around the
+ * list operations, never around processing, to avoid holding it across
+ * potentially re-entrant model callbacks.
+ */
+static struct ble_npl_mutex local_queue_mutex;
+
+static void
+local_queue_lock(void)
+{
+    ble_npl_mutex_pend(&local_queue_mutex, BLE_NPL_TIME_FOREVER);
+}
+
+static void
+local_queue_unlock(void)
+{
+    ble_npl_mutex_release(&local_queue_mutex);
+}
+
 /* Seq limit after IV Update is triggered */
 #define IV_UPDATE_SEQ_LIMIT CONFIG_BT_MESH_IV_UPDATE_SEQ_LIMIT
 
@@ -372,7 +397,15 @@ static void bt_mesh_net_local(struct ble_npl_event *work)
 {
 	struct os_mbuf *buf;
 
-	while ((buf = net_buf_slist_get(&bt_mesh.local_queue))) {
+	while (1) {
+		local_queue_lock();
+		buf = net_buf_slist_get(&bt_mesh.local_queue);
+		local_queue_unlock();
+
+		if (!buf) {
+			break;
+		}
+
 		struct bt_mesh_subnet *sub = LOOPBACK_BUF_SUB(buf);
 		struct bt_mesh_net_rx rx = {
 			.ctx = {
@@ -494,7 +527,9 @@ static int loopback(const struct bt_mesh_net_tx *tx, const uint8_t *data,
 
 	net_buf_add_mem(buf, data, len);
 
+	local_queue_lock();
 	net_buf_slist_put(&bt_mesh.local_queue, buf);
+	local_queue_unlock();
 
 	k_work_submit(&bt_mesh.local_work);
 
@@ -575,23 +610,35 @@ void bt_mesh_net_loopback_clear(uint16_t net_idx)
 {
 	struct net_buf_slist_t new_list;
 	struct os_mbuf *buf;
+	struct os_mbuf *to_free = NULL;
 
 	BT_DBG("0x%04x", net_idx);
 
 	net_buf_slist_init(&new_list);
 
+	local_queue_lock();
 	while ((buf = net_buf_slist_get(&bt_mesh.local_queue))) {
 		struct bt_mesh_subnet *sub = LOOPBACK_BUF_SUB(buf);
 
 		if (net_idx == BT_MESH_KEY_ANY || net_idx == sub->net_idx) {
 			BT_DBG("Dropped 0x%06x", SEQ(buf->om_data));
-			net_buf_unref(buf);
+			/* Chain for freeing after releasing the lock. */
+			buf->om_next.sle_next = (struct os_mbuf *)to_free;
+			to_free = buf;
 		} else {
 			net_buf_slist_put(&new_list, buf);
 		}
 	}
 
 	bt_mesh.local_queue = new_list;
+	local_queue_unlock();
+
+	while (to_free) {
+		buf = to_free;
+		to_free = (struct os_mbuf *)to_free->om_next.sle_next;
+		buf->om_next.sle_next = NULL;
+		net_buf_unref(buf);
+	}
 }
 
 static bool net_decrypt(struct bt_mesh_net_rx *rx, struct os_mbuf *in,
@@ -1066,6 +1113,7 @@ void bt_mesh_net_init(void)
 
 	k_work_init(&bt_mesh.local_work, bt_mesh_net_local);
 	net_buf_slist_init(&bt_mesh.local_queue);
+	ble_npl_mutex_init(&local_queue_mutex);
 
 	rc = os_mempool_init(&loopback_buf_mempool, MYNEWT_VAL(BLE_MESH_LOOPBACK_BUFS),
 			     LOOPBACK_MAX_PDU_LEN + BT_MESH_MBUF_HEADER_SIZE,

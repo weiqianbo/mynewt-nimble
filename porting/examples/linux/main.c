@@ -27,10 +27,6 @@
 
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
-#include "services/ans/ble_svc_ans.h"
-#include "services/ias/ble_svc_ias.h"
-#include "services/lls/ble_svc_lls.h"
-#include "services/tps/ble_svc_tps.h"
 
 static struct ble_npl_task s_task_host;
 static struct ble_npl_task s_task_hci;
@@ -67,13 +63,9 @@ int main(int argc, char *argv[])
 
     nimble_port_init();
 
-    /* This example provides GATT Alert service */
+    /* Initialize mandatory services */
     ble_svc_gap_init();
     ble_svc_gatt_init();
-    ble_svc_ans_init();
-    ble_svc_ias_init();
-    ble_svc_lls_init();
-    ble_svc_tps_init();
 
     /* XXX Need to have template for store */
     ble_store_config_init();

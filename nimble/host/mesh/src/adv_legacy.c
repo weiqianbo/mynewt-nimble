@@ -48,6 +48,44 @@ struct os_task adv_task;
 
 static int32_t adv_timeout;
 
+/*
+ * The NimBLE host is single-threaded: the ble_gap_* calls made by the
+ * functions below must run on the host task, not on the mesh advertising
+ * thread.  They are therefore deferred via mesh_host_call() (see glue.c),
+ * which posts the call to the default event queue and waits for the host
+ * task to execute it.  The parameters of the next call are staged in these
+ * file-scope variables; the adv thread writes them before the deferred call
+ * and the host task only reads them, so no locking is needed.
+ */
+static struct ble_gap_adv_params host_adv_param;
+static struct bt_data host_adv_ad;
+static size_t host_adv_ad_len;
+
+static int
+host_adv_start(void)
+{
+    return bt_le_adv_start(&host_adv_param, &host_adv_ad, host_adv_ad_len,
+                           NULL, 0);
+}
+
+static int
+host_adv_stop(void)
+{
+    return bt_le_adv_stop();
+}
+
+static int
+host_proxy_adv_start(void)
+{
+    return bt_mesh_proxy_adv_start();
+}
+
+static int
+host_pb_gatt_adv_start(void)
+{
+    return bt_mesh_pb_gatt_adv_start();
+}
+
 static inline void adv_send(struct os_mbuf *buf)
 {
 	static const uint8_t adv_type[] = {
@@ -106,9 +144,13 @@ static inline void adv_send(struct os_mbuf *buf)
 	param.itvl_max = param.itvl_min;
 	param.conn_mode = BLE_GAP_CONN_MODE_NON;
 
+	host_adv_param = param;
+	host_adv_ad = ad;
+	host_adv_ad_len = 1;
+
 	int64_t time = k_uptime_get();
 
-	err = bt_le_adv_start(&param, &ad, 1, NULL, 0);
+	err = mesh_host_call(host_adv_start);
 
 	bt_mesh_adv_send_start(duration, err, BT_MESH_ADV(buf));
 	if (err) {
@@ -120,7 +162,7 @@ static inline void adv_send(struct os_mbuf *buf)
 
 	k_sleep(K_MSEC(duration));
 
-	err = bt_le_adv_stop();
+	err = mesh_host_call(host_adv_stop);
 	if (err) {
 		BT_ERR("Stopping advertising failed: err %d", err);
 		return;
@@ -147,16 +189,16 @@ mesh_adv_thread(void *args)
 				adv_timeout = K_FOREVER;
 				if (bt_mesh_is_provisioned()) {
 					if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY)) {
-						bt_mesh_proxy_adv_start();
+						(void)mesh_host_call(host_proxy_adv_start);
 						BT_DBG("Proxy Advertising up to %d ms", (int) adv_timeout);
 					}
 				} else if (IS_ENABLED(CONFIG_BT_MESH_PB_GATT)) {
-					bt_mesh_pb_gatt_adv_start();
+					(void)mesh_host_call(host_pb_gatt_adv_start);
 					BT_DBG("PB-GATT Advertising up to %d ms", (int) adv_timeout);
 				}
 
 				ev = ble_npl_eventq_get(&bt_mesh_adv_queue, ble_npl_time_ms_to_ticks32(adv_timeout));
-				bt_le_adv_stop();
+				(void)mesh_host_call(host_adv_stop);
 			}
 		} else {
 			ev = ble_npl_eventq_get(&bt_mesh_adv_queue, BLE_NPL_TIME_FOREVER);
@@ -214,6 +256,12 @@ void bt_mesh_adv_init(void)
 	assert(rc == 0);
 
 	ble_npl_eventq_init(&bt_mesh_adv_queue);
+	BT_INFO("ble_npl_eventq_init bt_mesh_adv_queue init BLE_MESH_ADV_LEGACY.\n");
+
+	/* Prepare deferred host-API call support before the adv thread may
+	 * start using it.
+	 */
+	mesh_host_call_init();
 
 #ifdef MYNEWT
 	os_task_init(&adv_task, "mesh_adv", mesh_adv_thread, NULL,

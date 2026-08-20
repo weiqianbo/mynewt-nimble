@@ -2518,12 +2518,18 @@ static int
 ble_gap_adv_enable_tx(int enable)
 {
     struct ble_hci_le_set_adv_enable_cp cmd;
+    int rc;
 
     cmd.enable = !!enable;
 
-    return ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
-                                        BLE_HCI_OCF_LE_SET_ADV_ENABLE),
-                             &cmd, sizeof(cmd), NULL, 0);
+    BLE_HS_LOG(INFO, "ble_gap_adv_enable_tx: enable=%d, calling ble_hs_hci_cmd_tx\n", enable);
+
+    rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
+                                      BLE_HCI_OCF_LE_SET_ADV_ENABLE),
+                           &cmd, sizeof(cmd), NULL, 0);
+
+    BLE_HS_LOG(INFO, "ble_gap_adv_enable_tx: ble_hs_hci_cmd_tx returned rc=%d\n", rc);
+    return rc;
 }
 
 static int
@@ -2538,9 +2544,10 @@ ble_gap_adv_stop_no_lock(void)
 
     active = ble_gap_adv_active();
 
-    BLE_HS_LOG(INFO, "GAP procedure initiated: stop advertising.\n");
+    BLE_HS_LOG(INFO, "GAP procedure initiated: stop advertising. active=%d\n", active);
 
     rc = ble_gap_adv_enable_tx(0);
+    BLE_HS_LOG(INFO, "ble_gap_adv_enable_tx(0) returned rc=%d\n", rc);
     if (rc != 0) {
         goto done;
     }
@@ -2558,6 +2565,7 @@ done:
         STATS_INC(ble_gap_stats, adv_stop_fail);
     }
 
+    BLE_HS_LOG(INFO, "ble_gap_adv_stop_no_lock done rc=%d\n", rc);
     return rc;
 }
 #endif
