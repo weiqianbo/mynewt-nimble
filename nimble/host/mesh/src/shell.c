@@ -222,6 +222,134 @@ static struct bt_mesh_light_lightness_srv light_lightness_srv = {
 	.set = light_model_light_lightness_set,
 };
 
+/* Publication message buffers for shell models */
+static struct os_mbuf *bt_mesh_pub_msg_gen_onoff_cli;
+static struct os_mbuf *bt_mesh_pub_msg_gen_onoff_srv;
+static struct os_mbuf *bt_mesh_pub_msg_gen_level_cli;
+static struct os_mbuf *bt_mesh_pub_msg_gen_level_srv;
+static struct os_mbuf *bt_mesh_pub_msg_light_lightness_srv;
+
+/* Generic OnOff Client (Model ID 0x1001) publication update callback.
+ * Periodic publish format: OP_GEN_ONOFF_SET_UNACK (2-byte opcode)
+ * + OnOff state (1 byte) + TID (1 byte)
+ * This gets called when mod-pub sets a non-zero period on model 0x1001.
+ */
+static int gen_onoff_cli_pub_update(struct bt_mesh_model *mod)
+{
+	struct os_mbuf *msg = mod->pub->msg;
+	uint8_t state = 0;
+    static uint8_t tid;
+
+    bt_mesh_model_msg_init(msg, OP_GEN_ONOFF_SET_UNACK);
+	/* Try to get current state via server callback if available */
+	if (gen_onoff_srv.get) {
+		(void)gen_onoff_srv.get(mod, &state);
+	}
+	net_buf_simple_add_u8(msg, state);
+    net_buf_simple_add_u8(msg, tid++);
+
+	return 0;
+}
+
+/* Generic OnOff Server publication update callback.
+ * Format: OP_GEN_ONOFF_STATUS (2-byte opcode) + OnOff state (1 byte)
+ */
+static int gen_onoff_srv_pub_update(struct bt_mesh_model *mod)
+{
+	struct os_mbuf *msg = mod->pub->msg;
+	uint8_t state = 0;
+
+	bt_mesh_model_msg_init(msg, OP_GEN_ONOFF_STATUS);
+	if (gen_onoff_srv.get) {
+		(void)gen_onoff_srv.get(mod, &state);
+	}
+	net_buf_simple_add_u8(msg, state);
+
+	return 0;
+}
+
+/* Generic Level Client publication update callback.
+ * Format: OP_GEN_LEVEL_STATUS (2-byte opcode) + Level (2 bytes, little-endian)
+ */
+static int gen_level_cli_pub_update(struct bt_mesh_model *mod)
+{
+	struct os_mbuf *msg = mod->pub->msg;
+	int16_t level = 0;
+
+	bt_mesh_model_msg_init(msg, OP_GEN_LEVEL_STATUS);
+	if (gen_level_srv.get) {
+		(void)gen_level_srv.get(mod, &level);
+	}
+	net_buf_simple_add_le16(msg, (uint16_t)level);
+
+	return 0;
+}
+
+/* Generic Level Server publication update callback.
+ * Format: OP_GEN_LEVEL_STATUS (2-byte opcode) + Level (2 bytes, little-endian)
+ */
+static int gen_level_srv_pub_update(struct bt_mesh_model *mod)
+{
+	struct os_mbuf *msg = mod->pub->msg;
+	int16_t level = 0;
+
+	bt_mesh_model_msg_init(msg, OP_GEN_LEVEL_STATUS);
+	if (gen_level_srv.get) {
+		(void)gen_level_srv.get(mod, &level);
+	}
+	net_buf_simple_add_le16(msg, (uint16_t)level);
+
+	return 0;
+}
+
+/* Light Lightness Server publication update callback.
+ * Format: OP_LIGHT_LIGHTNESS_STATUS (2-byte opcode) + Lightness (2 bytes, little-endian)
+ */
+static int light_lightness_srv_pub_update(struct bt_mesh_model *mod)
+{
+	struct os_mbuf *msg = mod->pub->msg;
+	int16_t lightness = 0;
+
+	bt_mesh_model_msg_init(msg, OP_LIGHT_LIGHTNESS_STATUS);
+	if (light_lightness_srv.get) {
+		(void)light_lightness_srv.get(mod, &lightness);
+	}
+	net_buf_simple_add_le16(msg, (uint16_t)lightness);
+
+	return 0;
+}
+
+/* Initialize all shell model publication contexts (msg buffers + update callbacks).
+ * This must be called before mod-pub with non-zero period is used.
+ */
+static void shell_models_pub_init(void)
+{
+	/* Generic OnOff Client (Model ID 0x1001) - needs 2+1 bytes for opcode + state */
+	bt_mesh_pub_msg_gen_onoff_cli = NET_BUF_SIMPLE(2 + 1 + 4);
+	gen_onoff_cli_pub.msg = bt_mesh_pub_msg_gen_onoff_cli;
+	gen_onoff_cli_pub.update = gen_onoff_cli_pub_update;
+
+	/* Generic OnOff Server (Model ID 0x1000) */
+	bt_mesh_pub_msg_gen_onoff_srv = NET_BUF_SIMPLE(2 + 1 + 4);
+	gen_onoff_srv_pub.msg = bt_mesh_pub_msg_gen_onoff_srv;
+	gen_onoff_srv_pub.update = gen_onoff_srv_pub_update;
+
+	/* Generic Level Client (Model ID 0x1003) - needs 2+2 bytes for opcode + level */
+	bt_mesh_pub_msg_gen_level_cli = NET_BUF_SIMPLE(2 + 2 + 4);
+	gen_level_cli_pub.msg = bt_mesh_pub_msg_gen_level_cli;
+	gen_level_cli_pub.update = gen_level_cli_pub_update;
+
+	/* Generic Level Server (Model ID 0x1002) */
+	bt_mesh_pub_msg_gen_level_srv = NET_BUF_SIMPLE(2 + 2 + 4);
+	gen_level_srv_pub.msg = bt_mesh_pub_msg_gen_level_srv;
+	gen_level_srv_pub.update = gen_level_srv_pub_update;
+
+	/* Light Lightness Server (Model ID 0x1301) - needs 2+2 bytes for opcode + lightness */
+	bt_mesh_pub_msg_light_lightness_srv = NET_BUF_SIMPLE(2 + 2 + 4);
+	light_lightness_pub.msg = bt_mesh_pub_msg_light_lightness_srv;
+	light_lightness_pub.update = light_lightness_srv_pub_update;
+}
+
 void bt_mesh_set_gen_onoff_srv_cb(int (*get)(struct bt_mesh_model *model, uint8_t *state),
 				  int (*set)(struct bt_mesh_model *model, uint8_t state))
 {
@@ -1407,6 +1535,10 @@ static int cmd_net_key_del(int argc, char *argv[])
 	uint8_t status;
 	int err;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	key_net_idx = strtoul(argv[1], NULL, 0);
 
 	err = bt_mesh_cfg_net_key_del(net.net_idx, net.dst, key_net_idx,
@@ -1506,6 +1638,10 @@ static int cmd_app_key_get(int argc, char *argv[])
 	size_t cnt;
 	uint8_t status;
 	int err, i;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	net_idx = strtoul(argv[1], NULL, 0);
 	cnt = ARRAY_SIZE(keys);
@@ -1666,6 +1802,10 @@ static int cmd_mod_app_get(int argc,
 	uint8_t status;
 	size_t cnt;
 	int err, i;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	elem_addr = strtoul(argv[1], NULL, 0);
 	mod_id = strtoul(argv[2], NULL, 0);
@@ -1907,6 +2047,10 @@ static int cmd_mod_sub_get(int argc,
 	uint8_t status;
 	size_t cnt;
 	int err, i;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	elem_addr = strtoul(argv[1], NULL, 0);
 	mod_id = strtoul(argv[2], NULL, 0);
@@ -2289,6 +2433,10 @@ static int cmd_provision_adv(int argc, char *argv[])
 	uint16_t addr;
 	size_t len;
 	int err;
+
+	if (argc < 5) {
+		return -EINVAL;
+	}
 
 	len = hex2bin(argv[1], uuid, sizeof(uuid));
 	(void)memset(uuid + len, 0, sizeof(uuid) - len);
@@ -2886,6 +3034,10 @@ static int cmd_cdb_node_add(int argc, char *argv[])
 	uint8_t num_elem;
 	size_t len;
 
+	if (argc < 5) {
+		return -EINVAL;
+	}
+
 	len = hex2bin(argv[1], uuid, sizeof(uuid));
 	memset(uuid + len, 0, sizeof(uuid) - len);
 
@@ -2922,6 +3074,10 @@ static int cmd_cdb_node_del(int argc, char *argv[])
 	struct bt_mesh_cdb_node *node;
 	uint16_t addr;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	addr = strtoul(argv[1], NULL, 0);
 
 	node = bt_mesh_cdb_node_get(addr);
@@ -2944,6 +3100,10 @@ static int cmd_cdb_subnet_add(int argc,
 	uint8_t net_key[16];
 	uint16_t net_idx;
 	size_t len;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	net_idx = strtoul(argv[1], NULL, 0);
 
@@ -2977,6 +3137,10 @@ static int cmd_cdb_subnet_del(int argc,
 	struct bt_mesh_cdb_subnet *sub;
 	uint16_t net_idx;
 
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
 	net_idx = strtoul(argv[1], NULL, 0);
 
 	sub = bt_mesh_cdb_subnet_get(net_idx);
@@ -2999,6 +3163,10 @@ static int cmd_cdb_app_key_add(int argc,
 	uint16_t net_idx, app_idx;
 	uint8_t app_key[16];
 	size_t len;
+
+	if (argc < 3) {
+		return -EINVAL;
+	}
 
 	net_idx = strtoul(argv[1], NULL, 0);
 	app_idx = strtoul(argv[2], NULL, 0);
@@ -3032,6 +3200,10 @@ static int cmd_cdb_app_key_del(int argc,
 {
 	struct bt_mesh_cdb_app_key *key;
 	uint16_t app_idx;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
 
 	app_idx = strtoul(argv[1], NULL, 0);
 
@@ -3681,6 +3853,15 @@ void ble_mesh_shell_init(void)
 
 	/* Initialize health pub message */
 	health_pub_init();
+
+#if MYNEWT_VAL(BLE_MESH_SHELL_MODELS)
+	/* Initialize shell model publication contexts (msg buffers + update
+	 * callbacks) so that mod-pub with non-zero period works, e.g.
+	 * mod-pub 2 0x1001 0xc123 0 0 7 10 3 50 no longer returns
+	 * STATUS_NVAL_PUB_PARAM for model 0x1001 (Generic OnOff Client).
+	 */
+	shell_models_pub_init();
+#endif
 
 	/* Shell and other mesh clients should use separate task to
 	   avoid deadlocks with mesh message processing queue */

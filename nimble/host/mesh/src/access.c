@@ -689,7 +689,7 @@ void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct os_mbuf *buf)
 		op = find_op(&dev_comp->elem[i], opcode, &model);
 
 		if (!op) {
-			BT_DBG("No OpCode 0x%08x for elem %d", opcode, i);
+			BT_INFO("No OpCode 0x%08x for elem %d", opcode, i);
 			continue;
 		}
 
@@ -718,6 +718,8 @@ void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct os_mbuf *buf)
 		(void)op->func(model, &rx->ctx, buf);
 		net_buf_simple_restore(buf, &state);
 	}
+
+	BT_INFO("OpCode=0x%08x", (unsigned) opcode);
 
 	if (MYNEWT_VAL(BLE_MESH_ACCESS_LAYER_MSG) && msg_cb) {
 		msg_cb(opcode, &rx->ctx, buf);

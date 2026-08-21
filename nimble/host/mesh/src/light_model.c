@@ -22,6 +22,7 @@ static void update_light_state(void)
 int light_model_gen_onoff_get(struct bt_mesh_model *model, uint8_t *state)
 {
 	*state = gen_onoff_state;
+	console_printf("Light state: onoff=%d lvl=0x%04x\n", gen_onoff_state, (uint16_t)gen_level_state);
 	return 0;
 }
 
