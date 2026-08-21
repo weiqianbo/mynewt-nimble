@@ -36,9 +36,9 @@
 #include "mesh/glue.h"
 #include "mesh/slist.h"
 
-#define LOOPBACK_MAX_PDU_LEN (BT_MESH_NET_HDR_LEN + 16)
+#define LOOPBACK_MAX_PDU_LEN (BT_MESH_NET_MAX_PDU_LEN)
 #define LOOPBACK_USER_DATA_SIZE sizeof(struct bt_mesh_subnet *)
-#define LOOPBACK_BUF_SUB(buf) (*(struct bt_mesh_subnet **)net_buf_user_data(buf))
+#define LOOPBACK_BUF_SUB(buf) (*(struct bt_mesh_subnet **)OS_MBUF_USRHDR(buf))
 
 /*
  * The loopback queue (bt_mesh.local_queue) is filled by loopback() from
@@ -515,7 +515,7 @@ static int loopback(const struct bt_mesh_net_tx *tx, const uint8_t *data,
 {
 	struct os_mbuf *buf;
 
-	buf = os_mbuf_get_pkthdr(&loopback_os_mbuf_pool, BT_MESH_NET_HDR_LEN);
+	buf = os_mbuf_get_pkthdr(&loopback_os_mbuf_pool, LOOPBACK_USER_DATA_SIZE);
 	if (!buf) {
 		BT_WARN("Unable to allocate loopback");
 		return -ENOMEM;
