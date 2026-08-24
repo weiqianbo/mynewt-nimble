@@ -475,6 +475,18 @@ ble_l2cap_tx(struct ble_hs_conn *conn, struct ble_l2cap_chan *chan,
     case BLE_HS_EAGAIN:
         /* Controller could not accommodate full packet.  Enqueue remainder. */
         STAILQ_INSERT_TAIL(&conn->bhc_tx_q, OS_MBUF_PKTHDR(txom), omp_next);
+#if MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO) != 0
+        /* This packet is now waiting for the controller to return a
+         * number-of-completed-packets event before it can be transmitted.
+         * If this is the first packet stuck in the queue, arm the stall
+         * watchdog.
+         */
+        if (conn->bhc_tx_stall_tmo == 0) {
+            conn->bhc_tx_stall_tmo = ble_npl_time_get() +
+                ble_npl_time_ms_to_ticks32(MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO));
+            ble_hs_timer_resched();
+        }
+#endif
         return 0;
 
     default:

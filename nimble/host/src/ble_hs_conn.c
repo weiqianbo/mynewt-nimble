@@ -475,7 +475,8 @@ ble_hs_conn_timer(void)
 {
     /* If there are no timeouts configured, then there is nothing to check. */
 #if MYNEWT_VAL(BLE_L2CAP_RX_FRAG_TIMEOUT) == 0 && \
-    BLE_HS_ATT_SVR_QUEUED_WRITE_TMO == 0
+    BLE_HS_ATT_SVR_QUEUED_WRITE_TMO == 0 && \
+    MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO) == 0
 
     return BLE_HS_FOREVER;
 #endif
@@ -485,7 +486,8 @@ ble_hs_conn_timer(void)
     int32_t next_exp_in_new;
     bool next_exp_in_updated;
 
-#if BLE_HS_ATT_SVR_QUEUED_WRITE_TMO || MYNEWT_VAL(BLE_L2CAP_RX_FRAG_TIMEOUT) != 0
+#if BLE_HS_ATT_SVR_QUEUED_WRITE_TMO || MYNEWT_VAL(BLE_L2CAP_RX_FRAG_TIMEOUT) != 0 || \
+    MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO) != 0
     ble_npl_time_t now = ble_npl_time_get();
     int32_t time_diff;
 #endif
@@ -539,6 +541,30 @@ ble_hs_conn_timer(void)
             if (time_diff < next_exp_in) {
                 next_exp_in_new = time_diff;
                 next_exp_in_updated = true;
+            }
+#endif
+
+#if MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO) != 0
+            /* Check each connection's outgoing-ACL stall timer.  If data has
+             * been queued for transmission to the controller and the
+             * controller has not accepted any of it within the timeout, the
+             * connection is terminated.
+             */
+            if (conn->bhc_tx_stall_tmo != 0) {
+                time_diff = conn->bhc_tx_stall_tmo - now;
+
+                if (time_diff <= 0) {
+                    /* Outgoing ACL data has been stalled too long. */
+                    int rc = ble_gap_terminate_with_conn(conn, BLE_ERR_REM_USER_CONN_TERM);
+                    BLE_HS_LOG(ERROR, "ble_gap_terminate_with_conn: rc=%d\n", rc);
+                    continue;
+                }
+
+                /* Determine if this connection is the soonest to time out. */
+                if (time_diff < next_exp_in) {
+                    next_exp_in_new = time_diff;
+                    next_exp_in_updated = true;
+                }
             }
 #endif
 

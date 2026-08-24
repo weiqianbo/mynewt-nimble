@@ -247,7 +247,18 @@ ble_hs_wakeup_tx_conn(struct ble_hs_conn *conn)
             STAILQ_INSERT_HEAD(&conn->bhc_tx_q, OS_MBUF_PKTHDR(om), omp_next);
             return BLE_HS_EAGAIN;
         }
+#if MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO) != 0
+        /* A queued packet was transmitted, so the controller is accepting
+         * data again; refresh the stall deadline. */
+        conn->bhc_tx_stall_tmo = ble_npl_time_get() +
+            ble_npl_time_ms_to_ticks32(MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO));
+#endif
     }
+
+#if MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO) != 0
+    /* The queue has drained; disarm the stall watchdog. */
+    conn->bhc_tx_stall_tmo = 0;
+#endif
 
     return 0;
 }

@@ -74,6 +74,14 @@ syscfg.defs:
             passes since the previous fragment was received, the connection is
             terminated.  A value of 0 means no timeout.
         value: 30000
+    BLE_HS_CONN_TX_STALL_TMO:
+        description: >
+            Expiry time for outgoing ACL data packets (ms).  If a connection
+            has data queued for transmission to the controller (i.e. waiting
+            for a number-of-completed-packets event) and the controller does
+            not accept any of the queued packets within this time, the
+            connection is terminated.  A value of 0 means no timeout.
+        value: 30000
     BLE_L2CAP_COC_MAX_NUM:
         description: >
             Defines maximum number of LE Connection Oriented Channels channels.

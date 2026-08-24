@@ -484,6 +484,15 @@ ble_hs_hci_acl_hdr_prepend(struct os_mbuf *om, uint16_t handle,
              ble_hs_hci_util_handle_pb_bc_join(handle, pb_flag, 0));
     put_le16(&hci_hdr.hdh_len, OS_MBUF_PKTHDR(om)->omp_len);
 
+    /* Only use the leading space of the head mbuf for the HCI header.  If
+     * there is not enough room, fail without freeing the mbuf chain;
+     * os_mbuf_prepend() would free the whole packet on allocation failure,
+     * but the caller wants to keep the unsent data and retry later.
+     */
+    if (OS_MBUF_LEADINGSPACE(om) < sizeof hci_hdr) {
+        return NULL;
+    }
+
     om2 = os_mbuf_prepend(om, sizeof hci_hdr);
     if (om2 == NULL) {
         return NULL;
@@ -541,6 +550,8 @@ ble_hs_hci_acl_tx_now(struct ble_hs_conn *conn, struct os_mbuf **om)
 
     /* Send fragments until the entire packet has been sent. */
     while (txom != NULL && ble_hs_hci_avail_pkts > 0) {
+        struct os_mbuf *hdr_frag;
+
         frag = mem_split_frag(&txom, ble_hs_hci_max_acl_payload_sz(),
                               ble_hs_hci_frag_alloc, NULL);
         if (frag == NULL) {
@@ -548,11 +559,21 @@ ble_hs_hci_acl_tx_now(struct ble_hs_conn *conn, struct os_mbuf **om)
             return BLE_HS_EAGAIN;
         }
 
-        frag = ble_hs_hci_acl_hdr_prepend(frag, conn->bhc_handle, pb);
-        if (frag == NULL) {
-            rc = BLE_HS_ENOMEM;
-            goto err;
+        hdr_frag = ble_hs_hci_acl_hdr_prepend(frag, conn->bhc_handle, pb);
+        if (hdr_frag == NULL) {
+            /* Could not prepend the HCI header (out of mbufs).  Unlike a
+             * hard failure, keep the unsent data intact so the caller can
+             * queue it and retry later; the tx-stall watchdog guards the
+             * queued packet.  This mirrors the fragment-allocation failure
+             * path above.
+             */
+            if (txom != NULL) {
+                os_mbuf_concat(frag, txom);
+            }
+            *om = frag;
+            return BLE_HS_EAGAIN;
         }
+        frag = hdr_frag;
 
 #if !BLE_MONITOR
         BLE_HS_LOG(DEBUG, "ble_hs_hci_acl_tx(): ");

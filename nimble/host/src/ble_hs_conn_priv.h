@@ -102,6 +102,11 @@ struct ble_hs_conn {
     /** Queue of outgoing packets that could not be sent. */
     STAILQ_HEAD(, os_mbuf_pkthdr) bhc_tx_q;
 
+#if MYNEWT_VAL(BLE_HS_CONN_TX_STALL_TMO) != 0
+    /** Deadline for the outgoing-ACL stall watchdog; 0 = not armed. */
+    ble_npl_time_t bhc_tx_stall_tmo;
+#endif
+
     struct ble_att_svr_conn bhc_att_svr;
     struct ble_gatts_conn bhc_gatt_svr;
 
